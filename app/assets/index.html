@@ -91,6 +91,13 @@
         <h2 id="pageTitle">我的课表</h2>
         <div class="who" id="whoLine">未登录</div>
       </div>
+      <div class="topbar-actions">
+        <div class="icon-btn" id="btnRefresh" title="刷新">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M20.8 4.2v5.2h-5.2"/>
+          </svg>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -207,7 +214,7 @@
         <div class="course-row" id="rowUpdate">
           <div style="flex:1">
             <div class="nm">在线检查更新</div>
-            <div class="meta" id="verMeta">当前版本 v6.2</div>
+            <div class="meta" id="verMeta">当前版本 v6.3</div>
           </div>
           <div style="color:var(--sub)">›</div>
         </div>
@@ -240,15 +247,10 @@
       </div>
 
       <div class="muted" style="text-align:center;margin-top:18px">
-        广工课表 v6.2 · 数据来自学校教务系统<br>本应用不保存你的密码
+        广工课表 v6.3 · 数据来自学校教务系统<br>本应用不保存你的密码
       </div>
     </div>
 
-  <button class="fab-refresh" id="btnRefresh" title="刷新">
-    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M20.8 4.2v6.2h-5.2"/>
-    </svg>
-  </button>
 
   <div class="tabbar">
     <div class="tab active" data-page="tt">
@@ -317,6 +319,8 @@
 <script src="app.js"></script>
 </body>
 </html>
+
+
 
 
 
