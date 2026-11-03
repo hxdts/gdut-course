@@ -33,6 +33,7 @@ public class MainActivity extends android.app.Activity {
     private WebView ui;
     private WebView site;
     private android.widget.LinearLayout siteBar;
+    private android.widget.ImageView splash;   // 启动图覆盖层，加载完成后淡出
     private Bridge bridge;
     private SharedPreferences sp;
 
@@ -72,11 +73,16 @@ public class MainActivity extends android.app.Activity {
         // 反过来的话页面脚本跑起来时 window.Native 还不存在，第一次调用就抛错白屏
         bridge = new Bridge(this, ui);
         ui.addJavascriptInterface(bridge, "Native");
+        // ---- 启动图覆盖层（最上层，铺满整个窗口）----
+        // 微信/QQ 的做法：先把启动图盖上去，页面真正画出来之后淡出，
+        // 这样既不会白屏、也不会闪，卡住时还有 5 秒兜底自动撤掉
+
         ui.loadUrl("file:///android_asset/index.html");
 
         // ---- 站点页面的顶部返回条（最上层，保证永远能回到 App）----
         buildSiteBar();
         root.addView(siteBar, topBarParams());
+        showSplash();   // 最后加，保证盖在所有东西上面
 
         cookieAccept();
     }
@@ -173,6 +179,14 @@ public class MainActivity extends android.app.Activity {
                     openSite(u);
                     return true;
                 }
+
+                @Override
+                public void onPageFinished(WebView v, String url) {
+                    // 页面首帧画完之后再撤启动图，避免中间闪一下空白
+                    v.postDelayed(new Runnable() {
+                        public void run() { hideSplash(); }
+                    }, 120);
+                }
             });
             wv.setWebChromeClient(new WebChromeClient());
         } else {
@@ -180,6 +194,52 @@ public class MainActivity extends android.app.Activity {
             wv.setWebChromeClient(new WebChromeClient());
         }
         return wv;
+    }
+
+    /** 显示启动图覆盖层：铺满整个窗口（含状态栏区域），挡住加载过程中的空白 */
+    private void showSplash() {
+        try {
+            if (splash != null) return;
+            splash = new android.widget.ImageView(this);
+            // FIT_XY：强制拉满，保证不会显示成中间的一张小图
+            splash.setScaleType(android.widget.ImageView.ScaleType.FIT_XY);
+            splash.setBackgroundColor(0xFF1A1C22);
+            splash.setImageResource(R.drawable.launch_screen);
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+            splash.setLayoutParams(lp);
+            root.addView(splash);
+            // 5 秒兜底：不管页面有没有加载完，都不会一直卡在启动图上
+            splash.postDelayed(new Runnable() {
+                public void run() { hideSplash(); }
+            }, 5000);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** 淡出并移除启动图 */
+    private void hideSplash() {
+        runOnUiThread(new Runnable() {
+            public void run() {
+                final android.widget.ImageView v = splash;
+                if (v == null) return;
+                splash = null;
+                try {
+                    v.animate().alpha(0f).setDuration(220).withEndAction(new Runnable() {
+                        public void run() {
+                            try { root.removeView(v); } catch (Throwable ignored) { }
+                        }
+                    }).start();
+                } catch (Throwable t) {
+                    try { root.removeView(v); } catch (Throwable ignored) { }
+                }
+            }
+        });
+    }
+
+    /** 供 JS 调用：页面已经能看了，可以撤掉启动图 */
+    public void splashDone() {
+        hideSplash();
     }
 
     private void cookieAccept() {
