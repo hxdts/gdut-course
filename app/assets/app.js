@@ -2179,7 +2179,6 @@
 
   /** 描边强度档位 */
   var STROKES = [
-    { id: 'auto', name: '自动' },
     { id: 'none', name: '无' },
     { id: 'thin', name: '细' },
     { id: 'mid', name: '中' },
@@ -2187,7 +2186,11 @@
   ];
 
   function getStroke() {
-    try { return localStorage.getItem('stroke') || 'auto'; } catch (e) { return 'auto'; }
+    try {
+      var v = localStorage.getItem('stroke');
+      if (!v || v === 'auto') return 'thin';   // 旧的「自动」等同于「细」
+      return v;
+    } catch (e) { return 'thin'; }
   }
 
   function setStroke(id) {
@@ -2248,13 +2251,13 @@
     else if (mode === 'thin') w = 0.7;
     else if (mode === 'mid') w = 1.2;
     else if (mode === 'thick') w = 2;
-    else w = 1;
+    else w = 0.7;
     root.style.setProperty('--tt-sw', w + 'px');
 
     var lab = $('#strokeVal');
     if (lab) {
       var cur = STROKES.filter(function (s) { return s.id === mode; })[0];
-      lab.textContent = cur ? cur.name : '自动';
+      lab.textContent = cur ? cur.name : '细';
     }
   }
 
@@ -3391,6 +3394,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
