@@ -1303,6 +1303,11 @@
       var emsg = state.ttError
         ? state.ttError
         : '第 ' + (state.week || 1) + ' 周教务系统没有返回课程。可以点左右箭头切换到别的周看看。';
+      wrap.innerHTML = emptyState('这周没有课', emsg, '重新加载');
+      bindOpenSite(wrap);
+      $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
+      return;
+    }
     // 三页轨道：上一周 / 本周 / 下一周，滑动时能看到相邻周的真实课表
     var curW = state.week || 1;
     var prevC = coursesOfWeek(curW - 1);
