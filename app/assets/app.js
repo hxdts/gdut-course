@@ -156,6 +156,117 @@
     el.textContent = text;
   }
 
+  /* ================= 记住密码 ================= */
+  var rememberPwd = true;
+
+  function initRemember() {
+    try {
+      var v = localStorage.getItem('rememberPwd');
+      if (v === '0') rememberPwd = false;
+    } catch (e) {}
+    var box = $('#rememberBox');
+    if (box) box.classList.toggle('on', rememberPwd);
+    var row = $('#rememberRow');
+    if (row) {
+      row.addEventListener('click', function () {
+        rememberPwd = !rememberPwd;
+        try { localStorage.setItem('rememberPwd', rememberPwd ? '1' : '0'); } catch (e) {}
+        var b = $('#rememberBox');
+        if (b) b.classList.toggle('on', rememberPwd);
+        if (!rememberPwd) {
+          try {
+            localStorage.removeItem('savedSid');
+            localStorage.removeItem('savedPwd');
+          } catch (e) {}
+        }
+      });
+    }
+  }
+
+  function saveLogin(sid, pwd) {
+    try {
+      if (rememberPwd) {
+        localStorage.setItem('savedSid', sid);
+        localStorage.setItem('savedPwd', pwd);
+        localStorage.setItem('agreed', '1');
+      } else {
+        localStorage.removeItem('savedSid');
+        localStorage.removeItem('savedPwd');
+      }
+    } catch (e) {}
+  }
+
+  function getSavedLogin() {
+    try {
+      return {
+        sid: localStorage.getItem('savedSid') || '',
+        pwd: localStorage.getItem('savedPwd') || ''
+      };
+    } catch (e) { return { sid: '', pwd: '' }; }
+  }
+
+  /** 用记住的密码自动登录，返回是否发起了自动登录 */
+  function autoLogin() {
+    var c = getSavedLogin();
+    if (!c.sid || !c.pwd) return false;
+    var sidEl = $('#sid');
+    var pwdEl = $('#pwd');
+    if (sidEl) sidEl.value = c.sid;
+    if (pwdEl) pwdEl.value = c.pwd;
+    agreed = true;
+    try { localStorage.setItem('agreed', '1'); } catch (e) {}
+    var row = $('#agreeRow');
+    if (row) row.classList.add('on');
+    doLogin();
+    return true;
+  }
+  /* ================= 设置备份到原生（更新后不丢） ================= */
+  var PREF_KEYS = [
+    'theme', 'palette', 'courseOpacity', 'fontScale', 'ttFontScale',
+    'textColors', 'stroke', 'wallpaper', 'wallLum',
+    'agreed', 'rememberPwd', 'savedSid', 'savedPwd',
+    'term', 'termStart', 'termStartDate'
+  ];
+
+  var prefTimer = null;
+
+  function backupPrefs() {
+    if (!HAS_NATIVE) return;
+    if (prefTimer) clearTimeout(prefTimer);
+    prefTimer = setTimeout(function () {
+      var o = {};
+      PREF_KEYS.forEach(function (k) {
+        try {
+          var v = localStorage.getItem(k);
+          if (v !== null) o[k] = v;
+        } catch (e) {}
+      });
+      try {
+        call('savePrefs', { data: JSON.stringify(o) }).catch(function () {});
+      } catch (e) {}
+    }, 600);
+  }
+
+  function restorePrefs(done) {
+    if (!HAS_NATIVE) { if (done) done(); return; }
+    call('loadPrefs').then(function (r) {
+      if (r && r.data) {
+        try {
+          var o = JSON.parse(r.data);
+          Object.keys(o).forEach(function (k) {
+            if (PREF_KEYS.indexOf(k) < 0) return;
+            // 只补本地缺失的，不覆盖用户当前设置
+            if (localStorage.getItem(k) === null) {
+              localStorage.setItem(k, o[k]);
+            }
+          });
+        } catch (e) {}
+      }
+      if (done) done();
+    }).catch(function () {
+      if (done) done();
+    });
+  }
   function doLogin() {
     var sid = $('#sid').value.trim();
     var pwd = $('#pwd').value;
@@ -177,6 +288,8 @@
       .then(function (r) {
         if (r && r.ok) {
           state.sid = sid;
+          saveLogin(sid, pwd);
+          backupPrefs();
           showLoginMsg('登录成功，正在载入教务系统…', 'info');
           enterApp();
         } else {
@@ -561,6 +674,18 @@
   function showExpired() {
     if (state.__expiredShown) return;
     state.__expiredShown = true;
+    // 记住密码时直接用记住的账号密码自动重登，不用用户再输一遍
+    var c = getSavedLogin();
+    if (rememberPwd && c.sid && c.pwd) {
+      toast('登录已过期，正在自动重新登录…');
+      state.__expiredShown = false;
+      call('logout').then(function () {
+        autoLogin();
+      }).catch(function () {
+        autoLogin();
+      });
+      return;
+    }
     uiDialog({
       title: '登录已过期',
       message: '教务系统会话已失效，需要重新登录才能获取最新数据。\n已显示的内容会保留。',
@@ -1467,18 +1592,26 @@
     renderTtFsList(v);
   }
 
+  function setTtFs(key, val) {
+    val = Math.min(160, Math.max(70, val));
+    var v = getTtFs();
+    v[key] = val;
+    saveTtFs(v);
+    applyTtFs();
+  }
   function renderTtFsList(v) {
     var box = $('#ttFsList');
     if (!box) return;
-    // 只创建一次骨架，之后只更新数值，避免重建 DOM 导致连续点击失效
     if (!box.children.length) {
       var html = '';
       TT_FS_KEYS.forEach(function (it) {
         html += '<div class="ttfs-row" data-k="' + it.k + '">' +
           '<span class="ttfs-name">' + it.name + '</span>' +
-          '<button class="ttfs-btn" data-act="minus">−</button>' +
-          '<div class="ttfs-bar"><div class="ttfs-fill"></div></div>' +
-          '<button class="ttfs-btn" data-act="plus">+</button>' +
+          '<div class="ttfs-slider">' +
+            '<div class="ttfs-track"></div>' +
+            '<div class="ttfs-fill"></div>' +
+            '<div class="ttfs-thumb"></div>' +
+          '</div>' +
           '<span class="ttfs-val">100%</span>' +
           '</div>';
       });
@@ -1488,37 +1621,61 @@
       var row = box.querySelector('.ttfs-row[data-k="' + it.k + '"]');
       if (!row) return;
       var pct = v[it.k];
-      var val = row.querySelector('.ttfs-val');
-      if (val) val.textContent = pct + '%';
+      var w = Math.round((pct - 70) / 90 * 100);
       var fill = row.querySelector('.ttfs-fill');
-      if (fill) fill.style.width = Math.round((pct - 70) / 90 * 100) + '%';
+      var thumb = row.querySelector('.ttfs-thumb');
+      var val = row.querySelector('.ttfs-val');
+      if (fill) fill.style.width = w + '%';
+      if (thumb) thumb.style.left = w + '%';
+      if (val) val.textContent = pct + '%';
     });
-  }
-
-  function setTtFs(key, val) {
-    val = Math.min(160, Math.max(70, val));
-    var v = getTtFs();
-    v[key] = val;
-    saveTtFs(v);
-    applyTtFs();
   }
 
   function initTtFontScale() {
     applyTtFs();
     var box = $('#ttFsList');
     if (box) {
-      box.addEventListener('click', function (e) {
-        var el = e.target;
-        if (!el || !el.getAttribute) return;
-        var act = el.getAttribute('data-act');
-        if (!act) return;
-        var row = el.parentNode;
+      var dragging = false, dragKey = null, dragEl = null;
+
+      box.addEventListener('pointerdown', function (e) {
+        var t = e.target;
+        if (!t || !t.closest) return;
+        var thumb = t.closest('.ttfs-thumb');
+        if (!thumb) return;
+        var row = thumb.closest('.ttfs-row');
         var key = row ? row.getAttribute('data-k') : null;
         if (!key) return;
-        var cur = getTtFs()[key];
-        setTtFs(key, act === 'plus' ? cur + 5 : cur - 5);
+        dragging = true;
+        dragKey = key;
+        dragEl = thumb;
+        thumb.classList.add('dragging');
+        try { thumb.setPointerCapture(e.pointerId); } catch (err) {}
+        e.preventDefault();
       });
+
+      box.addEventListener('pointermove', function (e) {
+        if (!dragging || !dragEl) return;
+        var slider = dragEl.closest ? dragEl.closest(".ttfs-slider") : dragEl.parentNode;
+        var r = slider.getBoundingClientRect();
+        if (!r.width) return;
+        var p = (e.clientX - r.left) / r.width;
+        p = Math.max(0, Math.min(1, p));
+        var val = Math.round((70 + p * 90) / 5) * 5;
+        setTtFs(dragKey, val);
+        e.preventDefault();
+      });
+
+      function endDrag() {
+        if (!dragging) return;
+        dragging = false;
+        if (dragEl) dragEl.classList.remove('dragging');
+        dragEl = null;
+      }
+      box.addEventListener('pointerup', endDrag);
+      box.addEventListener('pointercancel', endDrag);
+      box.addEventListener('pointerleave', endDrag);
     }
+
     var reset = $('#ttFsReset');
     if (reset) {
       reset.addEventListener('click', function () {
@@ -2242,9 +2399,30 @@
 
   /* ================= 启动 ================= */
   function boot() {
+    // 先把原生备份里的设置补回本地（更新/重装后不丢外观设置）
+    restorePrefs(function () {
+      bootInner();
+    });
+  }
+
+  function bootInner() {
     initTerms();
     initAppearance();
     renderDiagnostics();
+    initRemember();
+
+    // 每 3 秒检查一次设置有无变化，有则备份到原生（更新后不丢）
+    var lastPrefSig = '';
+    setInterval(function () {
+      var sig = '';
+      PREF_KEYS.forEach(function (k) {
+        try { sig += k + '=' + (localStorage.getItem(k) || '') + ';'; } catch (e) {}
+      });
+      if (sig !== lastPrefSig) {
+        lastPrefSig = sig;
+        backupPrefs();
+      }
+    }, 3000);
 
     if (!HAS_NATIVE) {
       // 浏览器预览：直接进入主界面看空状态
@@ -2263,14 +2441,27 @@
         state.sid = s.sid || '';
         state.name = s.name || '';
         enterApp();
-      } else if (s && s.sid) {
-        // 记住学号，不记密码
-        $('#sid').value = s.sid;
+        setTimeout(autoCheckUpdate, 900);
+      } else {
+        if (s && s.sid) $('#sid').value = s.sid;
+        setTimeout(autoCheckUpdate, 900);
+        // 没有有效会话时，用记住的密码自动登录
+        setTimeout(function () {
+          if (!autoLogin()) {
+            // 没有记住密码：如果之前同意过协议，恢复勾选状态
+            try {
+              if (localStorage.getItem('agreed') === '1') {
+                agreed = true;
+                var row = $('#agreeRow');
+                if (row) row.classList.add('on');
+              }
+            } catch (e) {}
+          }
+        }, 400);
       }
-      // 打开软件就检查更新（登录页也会查，有新版本才弹窗）
-      setTimeout(autoCheckUpdate, 900);
     }).catch(function () {
       setTimeout(autoCheckUpdate, 900);
+      setTimeout(function () { autoLogin(); }, 400);
     });
   }
 
@@ -2321,6 +2512,14 @@
 
   boot();
 })();
+
+
+
+
+
+
+
+
 
 
 
