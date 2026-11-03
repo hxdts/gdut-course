@@ -2919,7 +2919,13 @@
       function onTE(ev) {
         if (!ev || ev.propertyName === 'transform') finish();
       }
-      ttSwipe.cancelSwap = function () { done = true; cleanup(); };
+      ttSwipe.cancelSwap = function () {
+        if (done) return;
+        done = true;
+        cleanup();
+        // 动画被新的滑动打断：这次换周仍然要算，挂起给 begin 兑现
+        ttSwipe.pendingWeek = (state.week || 1) + dir * pages;
+      };
       strip.addEventListener('transitionend', onTE);
       ttSetPos(target, true, TT_DUR_SWAP);
     }
