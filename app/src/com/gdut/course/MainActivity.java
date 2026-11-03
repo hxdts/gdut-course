@@ -52,7 +52,8 @@ public class MainActivity extends android.app.Activity {
         }
 
         root = new FrameLayout(this);
-        root.setBackgroundColor(0xFFF5F6FA);
+        // 透明背景：让 windowBackground 的启动图透出来，直到 WebView 画出第一帧
+        root.setBackgroundColor(Color.TRANSPARENT);
         setContentView(root, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         // ---- 教务站点 WebView（下层，网页兜底时显示）----
@@ -158,7 +159,7 @@ public class MainActivity extends android.app.Activity {
         if (!isUi) {
             s.setUserAgentString(Net.UA.replace("Mobile ", "Mobile "));
         }
-        wv.setBackgroundColor(isUi ? 0xFFF5F6FA : Color.WHITE);
+        wv.setBackgroundColor(isUi ? 0x00000000 : Color.WHITE);   // 界面层透明，启动图才能透出来
         wv.setOverScrollMode(View.OVER_SCROLL_NEVER);
         wv.setVerticalScrollBarEnabled(isUi ? false : true);
 
