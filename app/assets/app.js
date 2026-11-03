@@ -248,7 +248,15 @@
   }
 
   function restorePrefs(done) {
-    if (!HAS_NATIVE) { if (done) done(); return; }
+    // 只允许回调一次：之前 then 和 catch 都可能触发 done，
+    // 导致 bootInner 跑两遍、事件重复绑定，勾选框点一次切换两次等于没反应。
+    var finished = false;
+    function finish() {
+      if (finished) return;
+      finished = true;
+      if (done) done();
+    }
+    if (!HAS_NATIVE) { finish(); return; }
     call('loadPrefs').then(function (r) {
       if (r && r.data) {
         try {
@@ -262,11 +270,12 @@
           });
         } catch (e) {}
       }
-      if (done) done();
+      finish();
     }).catch(function () {
-      if (done) done();
+      finish();
     });
   }
+
   function doLogin() {
     var sid = $('#sid').value.trim();
     var pwd = $('#pwd').value;
@@ -2713,7 +2722,10 @@
   };
 
   /* ================= 启动 ================= */
+  var __booted = false;
   function boot() {
+    if (__booted) return;
+    __booted = true;
     // 先把原生备份里的设置补回本地（更新/重装后不丢外观设置）
     restorePrefs(function () {
       bootInner();
@@ -2828,6 +2840,7 @@
 
   boot();
 })();
+
 
 
 
