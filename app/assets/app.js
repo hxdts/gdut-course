@@ -1464,29 +1464,30 @@
       '<div class="tt-week">' + buildPane(cs, (state.days && state.days.length) ? state.days : daysOfWeek(curW)) + '</div>' +
       '<div class="tt-week">' + buildPane(nextC.courses, daysOfWeek(curW + 1)) + '</div>' +
       '</div></div>';
-    // ★ 增量更新：条带还在就只替换必要的那一页，不重建外层 DOM
+    // ★ 增量更新：始终保留外层 DOM（重建外层会让过渡动画消失）
     var existStrip = $('#ttStrip');
-    if (!state.forceRebuild && existStrip && existStrip.children.length === 3) {
+    if (existStrip && existStrip.children.length === 3) {
       var rot = state.lastDir || 0;
-      if (rot > 0) {
-        // 切到下一周：把第一页挪到末尾，只重建新的「下一周」这一页
-        existStrip.appendChild(existStrip.children[0]);
-        existStrip.children[2].innerHTML = buildPane(nextC.courses, daysOfWeek(curW + 1));
-      } else if (rot < 0) {
-        // 切到上一周：把最后一页挪到最前，只重建新的「上一周」这一页
-        existStrip.insertBefore(existStrip.children[2], existStrip.children[0]);
-        existStrip.children[0].innerHTML = buildPane(prevC.courses, daysOfWeek(curW - 1));
-      } else {
+      var multi = !!state.forceRebuild;
+      if (multi || rot === 0) {
+        // 跨多周或普通刷新：三页内容全部重建，但不动外层结构（保住过渡动画）
         existStrip.children[0].innerHTML = buildPane(prevC.courses, daysOfWeek(curW - 1));
         existStrip.children[1].innerHTML = buildPane(cs, (state.days && state.days.length) ? state.days : daysOfWeek(curW));
         existStrip.children[2].innerHTML = buildPane(nextC.courses, daysOfWeek(curW + 1));
+      } else if (rot > 0) {
+        // 切到下一周：把第一页挪到末尾，只重建新的「下一周」这一页
+        existStrip.appendChild(existStrip.children[0]);
+        existStrip.children[2].innerHTML = buildPane(nextC.courses, daysOfWeek(curW + 1));
+      } else {
+        // 切到上一周：把最后一页挪到最前，只重建新的「上一周」这一页
+        existStrip.insertBefore(existStrip.children[2], existStrip.children[0]);
+        existStrip.children[0].innerHTML = buildPane(prevC.courses, daysOfWeek(curW - 1));
       }
-      // 宽度交给 CSS
       renderCourseList(cs);
       $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
       state.lastDir = 0;
-      // 只有真正切周时才归中；普通数据刷新保持当前位置（可能正在看周六日）
-      if (rot !== 0 && typeof ttSetPos === 'function') ttSetPos(ttPageW(), false);
+      state.forceRebuild = false;
+      if (typeof ttSetPos === 'function') ttSetPos(ttPageW(), false);
       return;
     }
 
@@ -2870,6 +2871,17 @@
     function swap(dir, pages) {
       pages = pages || 1;
       var e = edges();
+      // 跨多周时不做滑页动画（滑到的内容和目标是两回事，会跳），改用快速淡入过渡
+      if (pages > 1) {
+        goToWeek((state.week || 1) + dir * pages);
+        var st = $('#ttStrip');
+        if (st) {
+          st.style.transition = 'opacity .16s ease';
+          st.style.opacity = '0.45';
+          setTimeout(function () { st.style.opacity = '1'; }, 24);
+        }
+        return;
+      }
       var target = dir > 0 ? e.pw * 2 : 0;
       var done = false;
       var timer = setTimeout(finish, TT_DUR_SWAP + 200);
@@ -3319,6 +3331,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
