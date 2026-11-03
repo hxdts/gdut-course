@@ -538,7 +538,7 @@
         prefetching = false;
         if (okCount > 0) {
           renderLastUpdated();
-          toast('已缓存 ' + okCount + ' 周课表，断网也能看');
+          // 预缓存完成不再弹提示
         }
         return;
       }
@@ -742,19 +742,16 @@
         state.updatedAt = Date.now();
         renderLastUpdated();
 
-        var msg;
+        // 成功刷新不再弹底部提示（只在异常时提示），避免每次刷新都打扰
+        var errMsg = '';
         if (state.expired) {
-          msg = '登录已过期，显示的是本地数据';
+          errMsg = '登录已过期，显示的是本地数据';
         } else if (state.ttError) {
-          msg = '刷新失败：' + state.ttError;
+          errMsg = '刷新失败：' + state.ttError;
         } else if (state.offline) {
-          msg = '无法联网，显示第 ' + state.week + ' 周的本地缓存';
-        } else if (state.courses.length) {
-          msg = '第 ' + state.week + ' 周 · ' + state.courses.length + ' 节课';
-        } else {
-          msg = '第 ' + state.week + ' 周暂无课程';
+          errMsg = '无法联网，显示第 ' + state.week + ' 周的本地缓存';
         }
-        finish(msg);
+        finish(errMsg);
         // 会话过期且存过账号密码：立刻静默重登并自动重试刷新，全程不打扰用户
         if (state.expired) {
           var c0 = getSavedLogin();
@@ -3455,6 +3452,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
