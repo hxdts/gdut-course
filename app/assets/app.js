@@ -1221,6 +1221,42 @@
     '#d946ef', '#a855f7', '#7c3aed', '#6366f1', '#0ea5e9', '#64748b',
     '#0f172a', '#334155'
   ];
+  /** 构建某段星期（如周一~周五）的课表网格 */
+  function buildGrid(dayFrom, dayTo, sections, grid, days) {
+    var cols = dayTo - dayFrom + 1;
+    var html = '<div class="timetable" style="grid-template-columns:26px repeat(' + cols + ',1fr)">';
+    html += '<div class="tt-head" style="grid-row:1;grid-column:1"></div>';
+    var todayStr = todayDateStr();
+    for (var d = dayFrom; d <= dayTo; d++) {
+      var dd = dayDate(d);
+      var isToday = dd && dd === todayStr;
+      html += '<div class="tt-head" style="grid-row:1;grid-column:' + (d - dayFrom + 2) + '">' + days[d - 1] +
+        (dd ? '<span class="tt-date' + (isToday ? ' today' : '') + '">' + dd + '</span>' : '') +
+        '</div>';
+    }
+    sections.forEach(function (sec, idx) {
+      var row = idx + 2;
+      html += '<div class="tt-side" style="grid-row:' + row + ';grid-column:1">' + sec + '</div>';
+      for (var d = dayFrom; d <= dayTo; d++) {
+        var c = grid[d + '_' + sec];
+        var col = d - dayFrom + 2;
+        if (c && c.start === sec) {
+          var span = Math.min((c.end || c.start) - c.start + 1, sections.length - idx);
+          html += '<div class="tt-cell" style="grid-row:' + row + ' / span ' + span +
+            ';grid-column:' + col + '">' +
+            '<div class="tt-course" data-idx="' + c.__i + '" style="background:' + colorOf(c.name) + '">' +
+            '<span class="n">' + esc(shortName(c.name)) + '</span>' +
+            (c.room ? '<span class="r">' + esc(c.room) + '</span>' : '') +
+            (c.teacher ? '<span class="r">' + esc(c.teacher) + '</span>' : '') +
+            '</div></div>';
+        } else if (!c) {
+          html += '<div class="tt-cell" style="grid-row:' + row + ';grid-column:' + col + '"></div>';
+        }
+      }
+    });
+    html += '</div>';
+    return html;
+  }
   function renderTimetable() {
     var wrap = $('#ttWrap');
     var cs = state.courses;
@@ -1257,41 +1293,12 @@
       for (var k = c.start; k <= e; k++) grid[c.day + '_' + k] = c;
     });
 
-    var html = '<div class="tt-scroll"><div class="timetable">';
-    html += '<div class="tt-head" style="grid-row:1;grid-column:1"></div>';
-    var todayStr = todayDateStr();
-    for (var d = 1; d <= 7; d++) {
-      var dd = dayDate(d);
-      var isToday = dd && dd === todayStr;
-      html += '<div class="tt-head" style="grid-row:1;grid-column:' + (d + 1) + '">' + days[d - 1] +
-        (dd ? '<span class="tt-date' + (isToday ? ' today' : '') + '">' + dd + '</span>' : '') +
-        '</div>';
-    }
-
-    sections.forEach(function (sec, idx) {
-      var row = idx + 2;
-      html += '<div class="tt-side" style="grid-row:' + row + ';grid-column:1">' + sec + '</div>';
-      for (var d = 1; d <= 7; d++) {
-        var c = grid[d + '_' + sec];
-        if (c && c.start === sec) {
-          var span = Math.min((c.end || c.start) - c.start + 1, sections.length - idx);
-          html += '<div class="tt-cell" style="grid-row:' + row + ' / span ' + span +
-            ';grid-column:' + (d + 1) + '">' +
-            '<div class="tt-course" data-idx="' + c.__i + '" style="background:' + colorOf(c.name) + '">' +
-            '<span class="n">' + esc(shortName(c.name)) + '</span>' +
-            (c.room ? '<span class="r">' + esc(c.room) + '</span>' : '') +
-            (c.teacher ? '<span class="r">' + esc(c.teacher) + '</span>' : '') +
-            '</div></div>';
-        } else if (c) {
-          // 被跨节课程覆盖，不再单独渲染，避免网格重叠
-        } else {
-          html += '<div class="tt-cell" style="grid-row:' + row + ';grid-column:' + (d + 1) + '"></div>';
-        }
-      }
-    });
+    // 左右两页：工作日（周一~周五）/ 周末（周六~周日）
+    var html = '<div class="tt-viewport"><div class="tt-pager" id="ttPager">';
+    html += '<div class="tt-pane">' + buildGrid(1, 5, sections, grid, days) + '</div>';
+    html += '<div class="tt-pane">' + buildGrid(6, 7, sections, grid, days) + '</div>';
     html += '</div></div>';
-
-    // 课程清单
+    html += '<div class="tt-dots" id="ttDots"><i class="on"></i><i></i></div>';
     var byName = {};
     cs.forEach(function (c) { (byName[c.name] = byName[c.name] || []).push(c); });
     html += '<div class="card" style="margin-top:12px"><div class="card-title">课程 · ' +
@@ -1313,6 +1320,9 @@
 
     wrap.innerHTML = html;
     $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
+
+    // 分页容器是动态生成的，每次渲染后重新绑定滑动
+    initTTSwipe();
 
     // 点课程行右侧的色点 → 打开该课颜色选择器
     if (!wrap.__ccBound) {
@@ -2452,57 +2462,105 @@
       applyWallFit(fit);
     });
   }
-  /* ================= 课表左右滑动切周 ================= */
+  /* ================= 课表工作日/周末分页：跟手滑动 ================= */
+  var ttPager = { page: 0, startX: 0, dx: 0, dragging: false, trackW: 0 };
+
   function initTTSwipe() {
-    var wrap = $('#ttWrap');
-    if (!wrap || wrap.__swipeBound) return;
-    wrap.__swipeBound = true;
+    var pager = $('#ttPager');
+    if (!pager || pager.__bound) return;
+    pager.__bound = true;
 
-    var sx = 0, sy = 0, tracking = false, fired = false;
+    var viewport = pager.parentElement;
+    var dots = function () { return document.querySelectorAll('#ttDots i'); };
 
-    function onStart(x, y) {
-      sx = x; sy = y; tracking = true; fired = false;
+    function apply(offsetPx, animate) {
+      pager.style.transition = animate ? 'transform .3s cubic-bezier(.22,.68,.36,1)' : 'none';
+      pager.style.transform = 'translateX(calc(' + (-ttPager.page * 50) + '% + ' + offsetPx + 'px))';
     }
-    function onMove(x, y) {
-      if (!tracking || fired) return;
-      var dx = x - sx, dy = y - sy;
-      // 水平位移足够大且明显大于垂直 → 切周
-      if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 1.6) {
-        fired = true;
-        tracking = false;
-        var cur = state.week || 1;
-        goToWeek(dx < 0 ? cur + 1 : cur - 1);
+
+    function setDots() {
+      Array.prototype.forEach.call(dots(), function (el, i) {
+        el.classList.toggle('on', i === ttPager.page);
+      });
+    }
+
+    function goPage(p, animate) {
+      ttPager.page = Math.max(0, Math.min(1, p));
+      apply(0, animate !== false);
+      setDots();
+    }
+
+    function onStart(x) {
+      if (!viewport) return;
+      ttPager.trackW = viewport.clientWidth || 1;
+      ttPager.startX = x;
+      ttPager.dx = 0;
+      ttPager.dragging = true;
+      apply(0, false);
+    }
+
+    function onMove(x) {
+      if (!ttPager.dragging) return;
+      var dx = x - ttPager.startX;
+      // 第 0 页不能右滑、第 1 页不能左滑，加阻尼
+      if ((ttPager.page === 0 && dx > 0) || (ttPager.page === 1 && dx < 0)) {
+        dx *= 0.32;
       }
+      ttPager.dx = dx;
+      apply(dx, false);
     }
-    function onEnd() { tracking = false; }
 
-    wrap.addEventListener('touchstart', function (e) {
+    function onEnd() {
+      if (!ttPager.dragging) return;
+      ttPager.dragging = false;
+      var threshold = Math.max(48, ttPager.trackW * 0.24);
+      if (ttPager.dx < -threshold && ttPager.page === 0) goPage(1, true);
+      else if (ttPager.dx > threshold && ttPager.page === 1) goPage(0, true);
+      else goPage(ttPager.page, true);   // 没到一半，回弹
+      ttPager.dx = 0;
+    }
+
+    // 触摸
+    viewport.addEventListener('touchstart', function (e) {
       if (e.touches.length !== 1) return;
-      onStart(e.touches[0].clientX, e.touches[0].clientY);
+      onStart(e.touches[0].clientX);
     }, { passive: true });
-
-    wrap.addEventListener('touchmove', function (e) {
+    viewport.addEventListener('touchmove', function (e) {
       if (e.touches.length !== 1) return;
-      onMove(e.touches[0].clientX, e.touches[0].clientY);
+      onMove(e.touches[0].clientX);
     }, { passive: true });
+    viewport.addEventListener('touchend', onEnd, { passive: true });
+    viewport.addEventListener('touchcancel', onEnd, { passive: true });
 
-    wrap.addEventListener('touchend', onEnd, { passive: true });
-    wrap.addEventListener('touchcancel', onEnd, { passive: true });
-
-    // 鼠标拖动（方便在电脑上测）
+    // 鼠标（预览用）
     var mDown = false;
-    wrap.addEventListener('mousedown', function (e) {
+    viewport.addEventListener('mousedown', function (e) {
       if (e.button !== 0) return;
       mDown = true;
-      onStart(e.clientX, e.clientY);
+      onStart(e.clientX);
     });
     document.addEventListener('mousemove', function (e) {
       if (!mDown) return;
-      onMove(e.clientX, e.clientY);
+      onMove(e.clientX);
     });
     document.addEventListener('mouseup', function () {
-      mDown = false; onEnd();
+      if (!mDown) return;
+      mDown = false;
+      onEnd();
     });
+
+    // 点页码圆点
+    var dotBox = $('#ttDots');
+    if (dotBox) {
+      dotBox.addEventListener('click', function (e) {
+        var t = e.target;
+        if (!t || t.tagName !== 'I') return;
+        var idx = Array.prototype.indexOf.call(dots(), t);
+        if (idx >= 0) goPage(idx, true);
+      });
+    }
+
+    goPage(0, false);
   }
   $('#rowWallpaper').addEventListener('click', function () {
     call('pickWallpaper').catch(function () {
@@ -2767,6 +2825,10 @@
 
   boot();
 })();
+
+
+
+
 
 
 
