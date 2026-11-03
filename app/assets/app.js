@@ -322,7 +322,7 @@
     $('#login').classList.add('hidden');
     $('#app').classList.remove('hidden');
     $('#meSid').textContent = state.sid || '—';
-    $('#whoLine').textContent = (state.sid ? '学号 ' + state.sid + ' · ' : '') + '已连接教务系统';
+    if ($('#whoLine')) $('#whoLine').textContent = (state.sid ? '学号 ' + state.sid + ' · ' : '') + '已连接教务系统';
     switchPage('tt');
     // 每次打开都定位到"今天所在的周"。
     // 关键：先用本地缓存的学期起始日期自己算，断网也能定位到本周，
@@ -669,6 +669,8 @@
   function setWho(text) {
     var el = $('#whoLine');
     if (el) el.textContent = text;
+    var st = $('#ttStatus');
+    if (st) st.textContent = text;
   }
 
   function showExpired() {
@@ -716,18 +718,22 @@
 
   function renderLastUpdated() {
     var el = $('#whoLine');
-    if (!el) return;
+    var st = $('#ttStatus');
+    if (!el && !st) return;
+    function put(text) {
+      if (el) el.textContent = text;
+      if (st) st.textContent = text;
+    }
     if (state.offline && state.offlineAt) {
       var t0 = new Date(state.offlineAt);
-      el.textContent = '离线缓存 · 更新于 ' +
+      put('离线 · 更新于 ' +
         two(t0.getMonth() + 1) + '-' + two(t0.getDate()) + ' ' +
-        two(t0.getHours()) + ':' + two(t0.getMinutes());
+        two(t0.getHours()) + ':' + two(t0.getMinutes()));
       return;
     }
     if (!state.updatedAt) return;
     var t = new Date(state.updatedAt);
-    var s = two(t.getHours()) + ':' + two(t.getMinutes());
-    el.textContent = (state.sid ? '学号 ' + state.sid + ' · ' : '') + '更新于 ' + s;
+    put('更新于 ' + two(t.getHours()) + ':' + two(t.getMinutes()));
   }
 
   /** 跳转到指定教学周：不显示全屏遮罩（会白闪），改用标签微提示 + 滑动动画 */
@@ -1400,7 +1406,7 @@
     $$('.page').forEach(function (el) { el.classList.remove('active'); });
     var page = $('#page-' + p);
     if (page) page.classList.add('active');
-    $('#pageTitle').textContent = TITLES[p] || '广工课表';
+    if ($('#pageTitle')) $('#pageTitle').textContent = TITLES[p] || '广工课表';
     $('.content').scrollTop = 0;
   }
 
@@ -2140,8 +2146,6 @@
     applyCourseOpacity(getCourseOpacity());
     initOpacitySlider();
 
-    // 字体大小
-    initFontScale();
 
     // 课表文字字号（五类独立）
     initTtFontScale();
@@ -2428,7 +2432,7 @@
       // 浏览器预览：直接进入主界面看空状态
       $('#app').classList.remove('hidden');
       $('#login').classList.add('hidden');
-      $('#whoLine').textContent = '浏览器预览模式';
+      if ($('#whoLine')) $('#whoLine').textContent = '浏览器预览模式';
       if (location.search.indexOf('mock') >= 0) fillMock();
       renderTimetable();
       renderGrades();
@@ -2512,6 +2516,10 @@
 
   boot();
 })();
+
+
+
+
 
 
 
