@@ -544,6 +544,60 @@ public class MainActivity extends android.app.Activity {
             return null;
         }
     }
+    /**
+     * 按编辑器里的缩放/平移，把当前壁纸渲染成屏幕尺寸的最终图。
+     * scale: 相对"铺满屏幕"的额外缩放；dx/dy: 相对屏幕中心的像素偏移。
+     */
+    public String renderWallpaper(float scale, float dx, float dy) {
+        try {
+            java.io.File dir = new java.io.File(getFilesDir(), "wallpaper");
+            java.io.File[] files = dir.listFiles();
+            if (files == null || files.length == 0) return null;
+            android.graphics.Bitmap src =
+                    android.graphics.BitmapFactory.decodeFile(files[0].getAbsolutePath());
+            if (src == null) return null;
+
+            android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+            int tw = Math.max(1, dm.widthPixels);
+            int th = Math.max(1, dm.heightPixels);
+
+            int sw = src.getWidth();
+            int sh = src.getHeight();
+            float base = Math.max((float) tw / sw, (float) th / sh) * scale;
+            float cx = tw / 2f + dx;
+            float cy = th / 2f + dy;
+
+            android.graphics.Matrix m = new android.graphics.Matrix();
+            m.postScale(base, base, sw / 2f, sh / 2f);
+            m.postTranslate(cx - sw / 2f, cy - sh / 2f);
+
+            android.graphics.Bitmap out =
+                    android.graphics.Bitmap.createBitmap(tw, th, android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas c = new android.graphics.Canvas(out);
+            android.graphics.Paint paint = new android.graphics.Paint();
+            paint.setFilterBitmap(true);
+            paint.setAntiAlias(true);
+            c.drawBitmap(src, m, paint);
+
+            java.io.File[] olds = dir.listFiles();
+            if (olds != null) {
+                for (java.io.File f2 : olds) f2.delete();
+            }
+            java.io.File dst = new java.io.File(dir,
+                    "wallpaper_" + System.currentTimeMillis() + ".jpg");
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(dst);
+            out.compress(android.graphics.Bitmap.CompressFormat.JPEG, 94, fos);
+            fos.flush();
+            fos.close();
+
+            if (!out.isRecycled()) out.recycle();
+            if (!src.isRecycled()) src.recycle();
+
+            return "file://" + dst.getAbsolutePath();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
     private String copyImageToPrivate(android.net.Uri uri) {
         java.io.InputStream in = null;
         java.io.FileOutputStream fos = null;
@@ -562,10 +616,15 @@ public class MainActivity extends android.app.Activity {
             }
             java.io.File dir = new java.io.File(getFilesDir(), "wallpaper");
             if (!dir.exists()) dir.mkdirs();
-            // 清掉旧文件，避免残留
+            // 保留最近 2 个文件：万一用户在编辑器里点了取消，原壁纸还在
             java.io.File[] olds = dir.listFiles();
-            if (olds != null) {
-                for (java.io.File f : olds) f.delete();
+            if (olds != null && olds.length >= 2) {
+                java.util.Arrays.sort(olds, new java.util.Comparator<java.io.File>() {
+                    public int compare(java.io.File a, java.io.File b) {
+                        return Long.compare(a.lastModified(), b.lastModified());
+                    }
+                });
+                for (int i2 = 0; i2 < olds.length - 1; i2++) olds[i2].delete();
             }
             // 文件名必须每次都不同：同名文件会被 WebView 图片缓存命中，
             // 导致用户换壁纸后看到的还是上一张。
@@ -655,4 +714,6 @@ public class MainActivity extends android.app.Activity {
         super.onDestroy();
     }
 }
+
+
 
