@@ -55,7 +55,6 @@ public class MainActivity extends android.app.Activity {
         root.setBackgroundColor(0xFFF5F6FA);
         setContentView(root, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-
         // ---- 教务站点 WebView（下层，网页兜底时显示）----
         // 注意：必须先创建 WebView，再使用 CookieManager，兼容部分定制系统
         site = buildWebView(false);
@@ -68,10 +67,11 @@ public class MainActivity extends android.app.Activity {
         ui = buildWebView(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(ui, true);
         root.addView(ui, match());
-        ui.loadUrl("file:///android_asset/index.html");
-
+        // 必须先注入 Native 接口再加载页面：
+        // 反过来的话页面脚本跑起来时 window.Native 还不存在，第一次调用就抛错白屏
         bridge = new Bridge(this, ui);
         ui.addJavascriptInterface(bridge, "Native");
+        ui.loadUrl("file:///android_asset/index.html");
 
         // ---- 站点页面的顶部返回条（最上层，保证永远能回到 App）----
         buildSiteBar();
@@ -154,8 +154,9 @@ public class MainActivity extends android.app.Activity {
         s.setSupportZoom(false);
         s.setBuiltInZoomControls(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        s.setCacheMode(WebSettings.LOAD_DEFAULT);
-        s.setTextZoom(100);
+        // 界面 WebView 禁用缓存：资源文件名带版本号，但 index.html 本身会被缓存，
+        // 一旦缓存到旧版就会去引用已删除的 js，直接白屏
+        s.setCacheMode(isUi ? WebSettings.LOAD_NO_CACHE : WebSettings.LOAD_DEFAULT);
         if (!isUi) {
             s.setUserAgentString(Net.UA.replace("Mobile ", "Mobile "));
         }
