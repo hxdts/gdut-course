@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <!-- 启动图作为窗口背景：Activity 代码执行前系统就会画出来，开屏没有白屏 -->
         <item name="android:windowBackground">@drawable/launch_bg</item>
-        <item name="android:statusBarColor">#FFFFFFFF</item>
-        <item name="android:navigationBarColor">#FFFFFFFF</item>
+        <!-- 让背景铺到状态栏/导航栏后面，启动画面才是整屏的 -->
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- 刘海屏也铺满，不缩进 -->
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="android:colorPrimary">#FF2F6BFF</item>
         <item name="android:colorAccent">#FF2F6BFF</item>
     </style>
