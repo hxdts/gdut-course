@@ -1033,3 +1033,22 @@ html, body {
   font-size: calc(14px * var(--fs, 1)); font-weight: 500;
 }
 .ccp-btn.primary { background: var(--blue); color: #fff; font-weight: 600; }
+
+/* ===== 字号滑块最终定位 =====
+   轨道、蓝条、圆点三者必须用同一套坐标：
+   轨道从 11px 到 W-11px，蓝条同起点，圆点中心落在蓝条右端。
+   之前 track 是全宽而 fill/thumb 缩进 11px，所以两端看着脱轨。 */
+.ttfs-track {
+  left: 11px !important;
+  right: 11px !important;
+}
+.ttfs-fill {
+  left: 11px !important;
+  width: calc((100% - 22px) * var(--p, 0.3333)) !important;
+}
+.ttfs-thumb {
+  left: calc(11px + (100% - 22px) * var(--p, 0.3333)) !important;
+}
+
+/* 去掉宽度动画，避免拖动时视觉滞后（也让位置测量准确） */
+.ttfs-fill { transition: none !important; }
