@@ -1052,3 +1052,22 @@ html, body {
 
 /* 去掉宽度动画，避免拖动时视觉滞后（也让位置测量准确） */
 .ttfs-fill { transition: none !important; }
+
+/* ===== 字号滑块垂直对齐（关键修复）=====
+   track/fill/thumb 都是 absolute 但一直没有 top，
+   于是各自落在静态位置，垂直方向错开。
+   统一用 top:50% + translateY(-50%) 让三者垂直居中。 */
+.ttfs-track,
+.ttfs-fill {
+  top: 50% !important;
+  bottom: auto !important;
+  transform: translateY(-50%) !important;
+}
+.ttfs-thumb {
+  top: 50% !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) !important;
+}
+.ttfs-thumb.dragging {
+  transform: translate(-50%, -50%) scale(1.12) !important;
+}
