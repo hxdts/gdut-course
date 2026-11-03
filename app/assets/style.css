@@ -1215,3 +1215,12 @@ body.dark-theme .tt-dots i { background: rgba(255,255,255,.25); }
   transform: translateX(0);
 }
 
+
+/* 快滑流畅性：让条带独立合成层，避免整页重绘 */
+.tt-strip {
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
+}
+.tt-week { contain: layout style paint; }
