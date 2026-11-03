@@ -2697,9 +2697,6 @@
         return;
       }
     }
-        ttSetPos(rightEdge, true, 320);
-      }
-    }
 
     /** 滑到目标位置，动画真正结束的那一刻再换数据（比 setTimeout 精确，不会卡顿） */
     function slideThenSwap(target, dir, dur) {
