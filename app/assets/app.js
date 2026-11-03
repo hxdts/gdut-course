@@ -5,14 +5,21 @@
 (function () {
   'use strict';
 
-  var HAS_NATIVE = typeof window.Native !== 'undefined' && window.Native &&
-                   typeof window.Native.call === 'function';
+  // 动态判断原生桥是否可用：页面脚本可能比 addJavascriptInterface 先跑，
+  // 只在加载时判断一次会误判成「浏览器预览」，导致界面空白
+  function hasNative() {
+    return typeof window.Native !== 'undefined' && !!window.Native &&
+           typeof window.Native.call === 'function';
+  }
+  var HAS_NATIVE = hasNative();
+
 
   var seq = 0;
   var pending = {};
 
   function call(action, params) {
     return new Promise(function (resolve, reject) {
+      HAS_NATIVE = hasNative();
       if (!HAS_NATIVE) {
         reject(new Error('NATIVE_UNAVAILABLE'));
         return;
@@ -3246,7 +3253,21 @@
   var __booted = false;
   function boot() {
     if (__booted) return;
-    __booted = true;
+    // 原生桥可能还没注入完，先等它出现（最多 1.2 秒），
+    // 否则会被误判成「浏览器预览模式」而显示空界面
+    var waited = 0;
+    (function waitBridge() {
+      if (hasNative() || waited >= 1200) {
+        __booted = true;
+        realBoot();
+        return;
+      }
+      waited += 100;
+      setTimeout(waitBridge, 100);
+    })();
+  }
+
+  function realBoot() {
     var innerDone = false;
     function go() {
       if (innerDone) return;
@@ -3257,8 +3278,6 @@
         window.__lastErr = 'bootInner: ' + (e && e.message);
       }
     }
-    // 兜底：原生那边的设置备份如果没按时回调，2.5 秒后直接启动，
-    // 不能因为等一个可选步骤让用户只看到一片背景色
     setTimeout(go, 2500);
     restorePrefs(go);
   }
