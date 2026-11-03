@@ -1627,13 +1627,24 @@
       var row = box.querySelector('.ttfs-row[data-k="' + it.k + '"]');
       if (!row) return;
       var pct = v[it.k];
-      var w = Math.round((pct - 70) / 90 * 100);
+      var w = Math.max(0, Math.min(1, (pct - 70) / 90));
       var fill = row.querySelector('.ttfs-fill');
       var thumb = row.querySelector('.ttfs-thumb');
+      var slider = row.querySelector('.ttfs-slider');
       var val = row.querySelector('.ttfs-val');
-      if (fill) fill.style.width = w + '%';
-      if (thumb) thumb.style.left = w + '%';
       if (val) val.textContent = pct + '%';
+
+      // 像素级定位：两端留出圆点半径，收缩到 0 或拉满时都不会溢出轨道
+      var trackW = slider ? slider.clientWidth : 0;
+      var R = 11;
+      if (trackW > R * 2) {
+        var pos = R + w * (trackW - R * 2);
+        if (thumb) thumb.style.left = pos + 'px';
+        if (fill) fill.style.width = pos + 'px';
+      } else {
+        if (thumb) thumb.style.left = (w * 100) + '%';
+        if (fill) fill.style.width = (w * 100) + '%';
+      }
     });
   }
 
@@ -1666,7 +1677,12 @@
         if (!r.width) return;
         var p = (e.clientX - r.left) / r.width;
         p = Math.max(0, Math.min(1, p));
-        var val = Math.round((70 + p * 90) / 5) * 5;
+        // 把点击位置换算回 70~160 之间（两端各留 11px 给圆点）
+        var R = 11, W = r.width;
+        var usable = Math.max(1, W - R * 2);
+        var q = (e.clientX - r.left - R) / usable;
+        q = Math.max(0, Math.min(1, q));
+        var val = Math.round((70 + q * 90) / 5) * 5;
         setTtFs(dragKey, val);
         e.preventDefault();
       });
@@ -2079,13 +2095,11 @@
   // 原生层选完图后回调（第二个参数是图片平均亮度 0-255，用于自适应文字颜色）
   window.__onWallpaperPicked = function (path, lum) {
     if (!path) { toast('图片读取失败'); return; }
-    try { localStorage.setItem('wallpaper', path); } catch (e) {}
     if (typeof lum === 'number' && lum >= 0) {
       try { localStorage.setItem('wallLum', String(lum)); } catch (e) {}
     }
-    applyWallpaper(path);
-    applyTextStyle();
-    toast(lum >= 0 && lum < 145 ? '壁纸偏暗，已自动切换浅色文字' : '壁纸已应用');
+    // 先进编辑器（拖动/缩放/旋转/镜像/裁剪），点「完成」才真正应用
+    openWallpaperEditor(path);
   };
 
   function clearWallpaper() {
@@ -2283,6 +2297,126 @@
         toast('处理失败');
       });
     });
+  }
+  /* ================= 壁纸编辑器 ================= */
+  var wpEd = {
+    path: '', scale: 1, dx: 0, dy: 0,
+    dragging: false, lastX: 0, lastY: 0, pinchDist: 0
+  };
+
+  function openWallpaperEditor(path) {
+    wpEd.path = path;
+    wpEd.scale = 1;
+    wpEd.dx = 0;
+    wpEd.dy = 0;
+    var el = $('#wpEditor');
+    if (!el) return;
+    el.classList.remove('hidden');
+    renderWpPreview();
+    bindWpEditorOnce();
+  }
+
+  function renderWpPreview() {
+    var img = $('#wpEdImg');
+    if (!img) return;
+    img.style.backgroundImage = 'url("' + wpEd.path + '")';
+    img.style.transform =
+      'translate(' + wpEd.dx + 'px,' + wpEd.dy + 'px) scale(' + wpEd.scale + ')';
+  }
+
+  var wpBound = false;
+  function bindWpEditorOnce() {
+    if (wpBound) return;
+    wpBound = true;
+
+    var stage = $('#wpEdStage');
+    var cancel = $('#wpEdCancel');
+    var done = $('#wpEdDone');
+    var tools = document.querySelector('.wp-ed-tools');
+
+    if (cancel) {
+      cancel.addEventListener('click', function () {
+        $('#wpEditor').classList.add('hidden');
+      });
+    }
+
+    if (done) {
+      done.addEventListener('click', function () {
+        $('#wpEditor').classList.add('hidden');
+        call('renderWallpaper', { scale: wpEd.scale, dx: wpEd.dx, dy: wpEd.dy })
+          .then(function (r) {
+            if (r && r.path) {
+              try { localStorage.setItem('wallpaper', r.path); } catch (e) {}
+              applyWallpaper(r.path);
+              applyTextStyle();
+              toast('壁纸已更新');
+            } else {
+              toast('生成壁纸失败');
+            }
+          })
+          .catch(function () { toast('生成壁纸失败'); });
+      });
+    }
+
+    if (tools) {
+      tools.addEventListener('click', function (e) {
+        var t = e.target;
+        if (!t || !t.closest) return;
+        var tool = t.closest('.wp-ed-tool');
+        if (!tool) return;
+        var op = tool.getAttribute('data-op');
+        toast('处理中…');
+        call('transformWallpaper', { op: op }).then(function (r) {
+          if (r && r.path) {
+            wpEd.path = r.path;
+            wpEd.dx = 0;
+            wpEd.dy = 0;
+            renderWpPreview();
+          } else {
+            toast('处理失败');
+          }
+        }).catch(function () { toast('处理失败'); });
+      });
+    }
+
+    if (stage) {
+      // 单指/鼠标拖动
+      stage.addEventListener('pointerdown', function (e) {
+        if (e.pointerType === 'touch' && e.isPrimary === false) return;
+        wpEd.dragging = true;
+        wpEd.lastX = e.clientX;
+        wpEd.lastY = e.clientY;
+        try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+        e.preventDefault();
+      });
+      stage.addEventListener('pointermove', function (e) {
+        if (!wpEd.dragging) return;
+        wpEd.dx += e.clientX - wpEd.lastX;
+        wpEd.dy += e.clientY - wpEd.lastY;
+        wpEd.lastX = e.clientX;
+        wpEd.lastY = e.clientY;
+        renderWpPreview();
+        e.preventDefault();
+      });
+      function endDrag() { wpEd.dragging = false; }
+      stage.addEventListener('pointerup', endDrag);
+      stage.addEventListener('pointercancel', endDrag);
+
+      // 双指缩放
+      stage.addEventListener('touchmove', function (e) {
+        if (e.touches.length !== 2) return;
+        var t1 = e.touches[0], t2 = e.touches[1];
+        var d = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        if (wpEd.pinchDist > 0) {
+          var ratio = d / wpEd.pinchDist;
+          wpEd.scale = Math.max(0.5, Math.min(3, wpEd.scale * ratio));
+          renderWpPreview();
+        }
+        wpEd.pinchDist = d;
+        e.preventDefault();
+      }, { passive: false });
+      stage.addEventListener('touchend', function () { wpEd.pinchDist = 0; });
+    }
   }
   $('#rowWallpaper').addEventListener('click', function () {
     call('pickWallpaper').catch(function () {
@@ -2546,6 +2680,10 @@
 
   boot();
 })();
+
+
+
+
 
 
 
