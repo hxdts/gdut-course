@@ -2551,7 +2551,7 @@
     var max = ttSwipe.pageW * 3 - ttSwipe.vpW;
     ttSwipe.pos = Math.max(0, Math.min(max, x));
     // 关键：动画交给 CSS transition，浏览器合成层执行，跟手且流畅
-    strip.style.transition = animate ? 'transform 1.7s cubic-bezier(.33,.75,.3,1)' : 'none';
+    strip.style.transition = animate ? 'transform 3s cubic-bezier(.33,.75,.3,1)' : 'none';
     strip.style.transform = 'translateX(' + (-ttSwipe.pos) + 'px)';
   }
 
@@ -2901,6 +2901,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
