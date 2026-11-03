@@ -1,0 +1,23 @@
+# 构建产物
+build/
+out/
+*.apk
+*.idsig
+*.dex
+
+# Android SDK、签名密钥（绝对不要提交）
+tools/
+*.keystore
+*.jks
+
+# 临时文件
+cas-login.html
+debug/
+*.log
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
