@@ -224,6 +224,8 @@
         localStorage.removeItem('savedPwd');
       }
     } catch (e) {}
+    // 登录信息立即备份，避免更新后又要重新输入
+    if (typeof backupPrefs === 'function') backupPrefs();
   }
 
   function getSavedLogin() {
@@ -427,6 +429,12 @@
 
   function saveTtCache() {
     try {
+      // 同样的保护：拿到空课程时不覆盖已有的非空缓存
+      var incoming = (state.courses || []).length;
+      if (incoming === 0) {
+        var prev = loadTtCache(state.term, state.week);
+        if (prev && prev.courses && prev.courses.length > 0) return;
+      }
       localStorage.setItem(ttCacheKey(state.term, state.week), JSON.stringify({
         term: state.term,
         week: state.week,
@@ -442,6 +450,11 @@
   /** 保存任意一周到缓存（用于整学期预缓存） */
   function saveTtCacheFor(term, week, d) {
     try {
+      // 保护：这次拿到空课程、而本地已有非空缓存时，不要覆盖。
+      // 否则会出现「某一周只剩一门课」这种残缺缓存，而预取逻辑又不会重拉它。
+      var incoming = (d && d.courses) ? d.courses.length : 0;
+      var prev = loadTtCache(term, week);
+      if (incoming === 0 && prev && prev.courses && prev.courses.length > 0) return false;
       localStorage.setItem(ttCacheKey(term, week), JSON.stringify({
         term: term,
         week: week,
@@ -465,7 +478,16 @@
    */
   var prefetching = false;
 
-  function prefetchAllWeeks() {
+  var prefetchTimer = null;
+  /** 延迟触发整学期预缓存：等渲染完成后再慢慢拉，不打断当前操作 */
+  function schedulePrefetch(force) {
+    if (prefetchTimer) return;
+    prefetchTimer = setTimeout(function () {
+      prefetchTimer = null;
+      try { prefetchAllWeeks(force); } catch (e) {}
+    }, 1200);
+  }
+  function prefetchAllWeeks(force) {
     if (prefetching) return;
     prefetching = true;
 
@@ -475,13 +497,13 @@
         prefetching = false;
         return;
       }
-      doPrefetchAllWeeks();
+      doPrefetchAllWeeks(force);
     }).catch(function () {
       prefetching = false;
     });
   }
 
-  function doPrefetchAllWeeks() {
+  function doPrefetchAllWeeks(force) {
     var total = state.totalWeeks || 22;
     var term = state.term || '';
     if (!term) { prefetching = false; return; }
@@ -489,7 +511,11 @@
     // 先算出需要补哪些周
     var todo = [];
     for (var i = 1; i <= total; i++) {
-      if (!hasTtCache(term, i)) todo.push(i);
+      // 没有缓存、或缓存里课程为空（残缺数据）都要重拉
+      var c = loadTtCache(term, i);
+      // 强制模式下（用户在刷新）所有周都重拉，修复历史上残缺的缓存；
+      // 平时只补空缺失的周，省流量。
+      if (force || !c || !c.courses || c.courses.length === 0) todo.push(i);
     }
     if (!todo.length) { prefetching = false; return; }
 
@@ -644,6 +670,7 @@
           };
         });
         saveTtCache();
+        schedulePrefetch(true);   // 刷新成功：强制把整学期重拉一遍，修掉残缺缓存
         return call('grades', {});
       })
       .then(function (g) {
@@ -854,6 +881,7 @@
           };
         });
         saveTtCache();
+        schedulePrefetch();
         renderTimetable();
         animateTimetable(dir);
         setWeekPending(false);
@@ -2381,12 +2409,14 @@
     applyWallpaper(path);
     applyTextStyle();
     toast('壁纸已应用');
+    if (typeof backupPrefs === 'function') backupPrefs();
   };
 
   function clearWallpaper() {
     try { localStorage.removeItem('wallpaper'); } catch (e) {}
     applyWallpaper('');
     toast('已移除壁纸');
+    if (typeof backupPrefs === 'function') backupPrefs();
   }
 
   function applyTheme(name) {
@@ -3166,6 +3196,9 @@
   bindLoginCheckboxes();
   boot();
 })();
+
+
+
 
 
 
