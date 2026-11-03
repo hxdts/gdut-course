@@ -730,8 +730,15 @@
           msg = '第 ' + state.week + ' 周暂无课程';
         }
         finish(msg);
-        if (state.expired) setTimeout(showExpired, 700);
-
+        // 会话过期且存过账号密码：立刻静默重登并自动重试刷新，全程不打扰用户
+        if (state.expired) {
+          var c0 = getSavedLogin();
+          if (c0.sid && c0.pwd) {
+            setTimeout(function () { reLoginAndRetry(c0.sid, c0.pwd); }, 200);
+          } else {
+            setTimeout(showExpired, 700);
+          }
+        }
         // 联网时顺手把整学期每一周都缓存下来，断网也能看任何一周
         if (!state.expired && !state.offline) {
           setTimeout(prefetchAllWeeks, 2500);
@@ -756,6 +763,35 @@
     if (el) el.textContent = text;
   }
 
+  /** 静默重登并自动重试刷新：用户存过账号密码时全程不弹任何登录界面 */
+  function reLoginAndRetry(sid, pwd) {
+    if (state.__reLogging) return;
+    state.__reLogging = true;
+    function retry() {
+      setTimeout(function () {
+        state.__reLogging = false;
+        state.expired = false;
+        state.__expiredShown = false;
+        refresh(true);   // 静默刷新
+      }, 250);
+    }
+    function doLogin2() {
+      call('login', { username: sid, password: pwd, captcha: '' })
+        .then(function (r) {
+          if (r && r.ok && !r.error) {
+            retry();
+          } else {
+            state.__reLogging = false;
+            showExpired();
+          }
+        })
+        .catch(function () {
+          state.__reLogging = false;
+          showExpired();
+        });
+    }
+    call('logout').then(doLogin2).catch(doLogin2);
+  }
   function showExpired() {
     if (state.__expiredShown) return;
     state.__expiredShown = true;
@@ -3356,6 +3392,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
