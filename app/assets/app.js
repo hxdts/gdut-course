@@ -2587,9 +2587,13 @@
     var strip = $('#ttStrip');
     var sc = $('#ttScroll');
     if (!strip || !sc) return;
-    var max = ttSwipe.pageW * 3 - ttSwipe.vpW;
+    // 关键：屏宽和页宽都实时读，屏幕旋转/分屏后不会用过期值把滑动截断
+    var vp = sc.clientWidth || document.documentElement.clientWidth || 360;
+    var pw = state.pageW || 1;
+    ttSwipe.vpW = vp;
+    ttSwipe.pageW = pw;
+    var max = Math.max(0, pw * 3 - vp);
     ttSwipe.pos = Math.max(0, Math.min(max, x));
-    // 换页用长动画（默认 800ms），回弹传 320 走短动画；只在变化时写 transition，避免拖动掉帧
     var tr = animate ? ('transform ' + (dur || 800) + 'ms cubic-bezier(.4,0,.2,1)') : 'none';
     if (strip.__tr !== tr) { strip.style.transition = tr; strip.__tr = tr; }
     strip.style.transform = 'translateX(' + (-ttSwipe.pos) + 'px)';
@@ -2600,23 +2604,26 @@
     var strip = $('#ttStrip');
     if (!sc || !strip) return;
 
+    var vp = sc.clientWidth || document.documentElement.clientWidth || 360;
+    ttSwipe.vpW = vp;
     ttSwipe.pageW = state.pageW || 1;
-    ttSwipe.vpW = sc.clientWidth || 1;
 
     if (!sc.__inited) {
       sc.__inited = true;
       var d = new Date().getDay();
       var base = ttSwipe.pageW;
       if (d === 0 || d === 6) {
-        base = ttSwipe.pageW + Math.max(0, ttSwipe.pageW - ttSwipe.vpW);
+        base = ttSwipe.pageW + Math.max(0, ttSwipe.pageW - vp);
       }
       ttSetPos(base, false);
     } else {
-      ttSetPos(ttSwipe.pageW, false);
+      // 已经初始化过：保持当前位置（可能正在看周六日），只做边界修正
+      ttSetPos(ttSwipe.pos, false);
     }
 
     if (sc.__bound) return;
     sc.__bound = true;
+
 
     function xOf(e) {
       if (e.touches && e.touches.length) return e.touches[0].clientX;
@@ -2660,6 +2667,10 @@
       ttSetPos(ttSwipe.startPos - (x - ttSwipe.startX), false);
     }
     function onEnd() {
+      // 用实时屏宽算边界，避免过期值导致"到不了周末也换不了周"
+      var scNow = $('#ttScroll');
+      if (scNow) { ttSwipe.vpW = scNow.clientWidth || ttSwipe.vpW; }
+      ttSwipe.pageW = state.pageW || ttSwipe.pageW;
       if (!ttSwipe.dragging) return;
       ttSwipe.dragging = false;
       var pw = ttSwipe.pageW;
