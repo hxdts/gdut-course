@@ -200,19 +200,17 @@ public class MainActivity extends android.app.Activity {
     private void showSplash() {
         try {
             if (splash != null) return;
-            // 用 View 的 background 而不是 ImageView：背景图默认就是拉伸铺满的，
-            // 不会像 ImageView 那样受 scaleType / 图片固有尺寸影响而留边
+            // 用 View + backgroundResource：background 会由 View 按自身的边界拉伸，
+            // 不像 ImageView 那样受图片固有尺寸影响而缩在中间露边
             splash = new android.widget.ImageView(this);
             splash.setScaleType(android.widget.ImageView.ScaleType.FIT_XY);
             splash.setAdjustViewBounds(false);
-            // 图片边缘的平均色，万一某个机型还有一两个像素没铺到也不会看出白边
-            splash.setBackgroundColor(0xFF60656B);
-            splash.setImageResource(R.drawable.launch_screen);
+            splash.setBackgroundResource(R.drawable.launch_screen);
+            splash.setImageDrawable(null);
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-            lp.gravity = android.view.Gravity.FILL;
-            splash.setLayoutParams(lp);
-            // 关键：不受父容器任何内边距影响，直接铺满窗口
+            lp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            lp.height = ViewGroup.LayoutParams.MATCH_PARENT;
             splash.setPadding(0, 0, 0, 0);
             splash.setFitsSystemWindows(false);
             root.addView(splash, lp);
