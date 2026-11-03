@@ -1083,3 +1083,21 @@ html, body {
   width: 100% !important;
   gap: 3px !important;
 }
+
+/* 顶栏右侧操作区 */
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.topbar .icon-btn {
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: rgba(255,255,255,.16);
+}
+.topbar .icon-btn svg { width: 21px; height: 21px; }
+.topbar .icon-btn:active { background: rgba(255,255,255,.28); transform: scale(.94); }
+/* 顶栏左侧的更新时间（年月日 + 时分，用点连接） */
+.topbar .who {
+  font-size: calc(11.5px * var(--fs, 1));
+  color: rgba(255,255,255,.82);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
