@@ -1,17 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 启动图：系统在 Activity 创建之前就画出来，点开图标立刻有画面，不会白屏。
-     底层模糊放大版铺满（拉伸看不出来），上层原图左右完整居中。 -->
+<!-- 启动图：系统在 Activity 创建之前就画出窗口背景，点开图标立刻有画面，不会白屏。
+     这里用一张已经合成好的整屏图（1080x2400，模糊背景 + 左右完整的原图），
+     gravity=fill 铺满屏幕——之前用 layer-list 两层叠加时，上层 bitmap 设 center
+     不会缩放，结果显示成屏幕中间的一张小图。 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <bitmap
-            android:src="@drawable/launch_bg_blur"
+            android:src="@drawable/launch_screen"
             android:gravity="fill"
-            android:filter="true" />
-    </item>
-    <item android:gravity="center">
-        <bitmap
-            android:src="@drawable/launch_bg_fg"
-            android:gravity="center"
             android:filter="true" />
     </item>
 </layer-list>
