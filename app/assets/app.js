@@ -786,7 +786,7 @@
     if (w === state.week) return;
 
     var dir = w > (state.week || 1) ? 1 : -1;
-    state.week = w;
+    state.lastDir = dir;   // 渲染时用这个方向做 DOM 轮转（只重建一页）
 
     // 课表已整学期缓存在本地：有缓存就直接用，不走网络（换周瞬间完成）
     var cached = loadTtCache(state.term, w);
@@ -1402,19 +1402,32 @@
       '<div class="tt-week" style="width:' + pageW + 'px">' + buildPane(cs, colW) + '</div>' +
       '<div class="tt-week" style="width:' + pageW + 'px">' + buildPane(nextC, colW) + '</div>' +
       '</div></div>';
-    // ★ 增量更新：条带还在就只替换三页内容，不重建外层 DOM，避免换页后闪一下
+    // ★ 增量更新：条带还在就只替换必要的那一页，不重建外层 DOM
     var existStrip = $('#ttStrip');
     if (existStrip && existStrip.children.length === 3) {
-      existStrip.children[0].innerHTML = buildPane(prevC, colW);
-      existStrip.children[1].innerHTML = buildPane(cs, colW);
-      existStrip.children[2].innerHTML = buildPane(nextC, colW);
+      var rot = state.lastDir || 0;
+      if (rot > 0) {
+        // 切到下一周：把第一页挪到末尾，只重建新的「下一周」这一页
+        existStrip.appendChild(existStrip.children[0]);
+        existStrip.children[2].innerHTML = buildPane(nextC, colW);
+      } else if (rot < 0) {
+        // 切到上一周：把最后一页挪到最前，只重建新的「上一周」这一页
+        existStrip.insertBefore(existStrip.children[2], existStrip.children[0]);
+        existStrip.children[0].innerHTML = buildPane(prevC, colW);
+      } else {
+        existStrip.children[0].innerHTML = buildPane(prevC, colW);
+        existStrip.children[1].innerHTML = buildPane(cs, colW);
+        existStrip.children[2].innerHTML = buildPane(nextC, colW);
+      }
       existStrip.style.width = (pageW * 3) + 'px';
       for (var wi = 0; wi < 3; wi++) existStrip.children[wi].style.width = pageW + 'px';
       renderCourseList(cs);
       $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
+      state.lastDir = 0;
       if (typeof ttSetPos === 'function') ttSetPos(pageW, false);
       return;
     }
+
 
     var days = ['一', '二', '三', '四', '五', '六', '日'];
     html += '<div class="card" id="courseListCard" style="margin-top:12px"></div>';
@@ -2576,8 +2589,9 @@
     if (!strip || !sc) return;
     var max = ttSwipe.pageW * 3 - ttSwipe.vpW;
     ttSwipe.pos = Math.max(0, Math.min(max, x));
-    // 换页用长动画（默认 3000ms），回弹传 320 走短动画
-    strip.style.transition = animate ? ('transform ' + (dur || 800) + 'ms cubic-bezier(.4,0,.2,1)') : 'none';
+    // 换页用长动画（默认 800ms），回弹传 320 走短动画；只在变化时写 transition，避免拖动掉帧
+    var tr = animate ? ('transform ' + (dur || 800) + 'ms cubic-bezier(.4,0,.2,1)') : 'none';
+    if (strip.__tr !== tr) { strip.style.transition = tr; strip.__tr = tr; }
     strip.style.transform = 'translateX(' + (-ttSwipe.pos) + 'px)';
   }
 
@@ -2610,8 +2624,20 @@
     }
 
     function onStart(e) {
-      ttSwipe.dragging = true;
+      // 上一次换页动画还在跑时快速再滑：先取实际位移，避免跳一下
+      var strip = $('#ttStrip');
+      if (strip) {
+        var m = getComputedStyle(strip).transform;
+        if (m && m !== 'none' && m.indexOf('matrix') === 0) {
+          var parts = m.replace(/matrix\(|\)/g, '').split(',');
+          var tx = parseFloat(parts[4]);
+          if (!isNaN(tx)) ttSwipe.pos = -tx;
+        }
+      }
+      // 取消上一次还没完成的换页（用户又滑了，说明想反悔）
+      if (ttSwipe.cancelSwap) { try { ttSwipe.cancelSwap(); } catch (err) {} }
       ttSwipe.startX = xOf(e);
+      ttSwipe.dragging = true;
       ttSwipe.startPos = ttSwipe.pos;
       ttSetPos(ttSwipe.pos, false);
     }
@@ -2655,18 +2681,24 @@
       var strip = $('#ttStrip');
       if (!strip) { ttSetPos(target, false); goWeek(dir); return; }
       var done = false;
+      var timer = setTimeout(finish, dur + 150);
+      function cleanup() {
+        strip.removeEventListener('transitionend', onTE);
+        if (timer) { clearTimeout(timer); timer = null; }
+        ttSwipe.cancelSwap = null;
+      }
       function finish() {
         if (done) return;
         done = true;
-        strip.removeEventListener('transitionend', onTE);
+        cleanup();
         goWeek(dir);
       }
       function onTE(e) {
         if (!e || e.propertyName === 'transform') finish();
       }
+      // 让 onStart 能取消掉这次挂起的换页（用户又滑了就是反悔）
+      ttSwipe.cancelSwap = function () { done = true; cleanup(); };
       strip.addEventListener('transitionend', onTE);
-      // 兜底：万一 transitionend 没触发（被隐藏/中断），超时后照样换
-      setTimeout(finish, dur + 150);
       ttSetPos(target, true, dur);
     }
 
@@ -2954,6 +2986,8 @@
   bindLoginCheckboxes();
   boot();
 })();
+
+
 
 
 
