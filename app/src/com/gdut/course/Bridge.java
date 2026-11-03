@@ -250,6 +250,28 @@ public class Bridge {
             return ok(o.toString());
         }
 
+        if ("savePrefs".equals(action)) {
+            try {
+                android.content.SharedPreferences sp = act.getSharedPreferences(
+                        "gdut_prefs", android.content.Context.MODE_PRIVATE);
+                sp.edit().putString("data", p.optString("data", "")).apply();
+            } catch (Throwable ignored) {
+            }
+            return ok("{\"ok\":true}");
+        }
+
+        if ("loadPrefs".equals(action)) {
+            String data = "";
+            try {
+                android.content.SharedPreferences sp = act.getSharedPreferences(
+                        "gdut_prefs", android.content.Context.MODE_PRIVATE);
+                data = sp.getString("data", "");
+            } catch (Throwable ignored) {
+            }
+            JSONObject o = new JSONObject();
+            o.put("data", data);
+            return ok(o.toString());
+        }
         if ("isWifi".equals(action)) {
             boolean wifi = false;
             boolean connected = false;
@@ -309,3 +331,4 @@ public class Bridge {
         return "";
     }
 }
+
