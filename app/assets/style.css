@@ -207,14 +207,16 @@ input {
 }
 .wk-btn:active { background: #dfe8ff; }
 
-/* 横向可滑动：7 列每列至少 48px，窄屏自动溢出可左右滑 */
+/* 课表横向容器：位移完全由 JS 的 transform 控制，浏览器不参与横向滚动。
+   touch-action:pan-y 表示「纵向交给浏览器滚动页面，横向留给 JS」；
+   配合 overflow:hidden（没有横向可滚内容）和 Pointer Events 的指针捕获，
+   横向拖动不会再被 WebView 吞掉。 */
 .tt-scroll {
-  overflow-x: auto; overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden !important;
+  touch-action: pan-y !important;
   margin: 0 -14px; padding: 0 14px 2px;
   scrollbar-width: none;
 }
-.tt-scroll::-webkit-scrollbar { display: none; }
 .timetable {
   display: grid;
   grid-template-columns: 30px repeat(7, var(--col-w, 52px));
@@ -1118,119 +1120,20 @@ body.dark-theme .tt-dots i { background: rgba(255,255,255,.25); }
 
 
 
-/* ===== 课表三页轨道（上一周 / 本周 / 下一周）===== */
-.tt-viewport { overflow: hidden; margin: 0; padding: 0; }
-.tt-track {
-  display: flex;
-  width: 300%;
-  will-change: transform;
-  transform: translateX(-33.3333%);
-}
-.tt-slab {
-  flex: 0 0 33.3333%;
-  min-width: 0;
-}
-.tt-slab .timetable {
-  width: 100% !important;
-  gap: 3px !important;
-}
-
-/* 勾选框：让点击始终落在行容器上，避免 SVG 子元素吞掉事件 */
-.agree-row .box,
-.agree-row .box svg,
-.agree-row .box svg *,
-.agree-row .txt {
-  pointer-events: none;
-}
-.agree-row .lnk {
-  pointer-events: auto;   /* 协议链接仍需可点 */
-}
-
-/* 三页之间留出间距，避免上一页周日和下一页周一贴在一起 */
-.tt-slab {
-  box-sizing: border-box;
-  padding: 0 6px;
-}
-.tt-slab:first-child { padding-left: 0; }
-.tt-slab:last-child { padding-right: 0; }
-
-/* ===== 课表：一屏 5 天，横向滑动看周末（同一张课表）===== */
-.tt-scroll {
-  overflow-x: auto !important;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  margin: 0 -14px;
-  padding: 0 14px 2px;
-  scrollbar-width: none;
-}
-.tt-scroll::-webkit-scrollbar { display: none; }
-.tt-scroll .timetable {
-  width: max-content !important;
-  gap: 3px !important;
-}
-.tt-slab { padding: 0; }
-
-/* 允许课表横向触摸滚动（之前被 touch-action: pan-y 锁死） */
-.tt-scroll {
-  overflow-x: auto !important;
-  overflow-y: hidden;
-  touch-action: pan-x pan-y !important;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* ===== 三周连续条带 ===== */
-.tt-scroll {
-  overflow-x: auto !important;
-  overflow-y: hidden;
-  touch-action: pan-x pan-y !important;
-  -webkit-overflow-scrolling: touch;
-  margin: 0 -14px;
-  padding: 0 14px 2px;
-  scrollbar-width: none;
-}
-.tt-scroll::-webkit-scrollbar { display: none; }
+/* ===== 课表三周条带（上一周 | 本周 | 下一周）===== */
 .tt-strip {
   display: flex;
   align-items: flex-start;
-}
-.tt-week {
-  flex: 0 0 auto;
-  padding: 0 4px;
-}
-.tt-week .timetable {
-  width: 100% !important;
-}
-
-/* ===== 三周条带：手势平移 + CSS transition 回弹（不用原生滚动）===== */
-.tt-scroll {
-  overflow: hidden !important;      /* 由 transform 控制位移，禁用原生滚动 */
-  touch-action: pan-y !important;   /* 横滑交给 JS，竖滑留给页面 */
-  margin: 0 -14px;
-  padding: 0 14px 2px;
-}
-.tt-strip {
-  display: flex;
-  align-items: flex-start;
-  will-change: transform;
-  transform: translateX(0);
-}
-
-
-/* 快滑流畅性：让条带独立合成层，避免整页重绘 */
-.tt-strip {
   will-change: transform;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  transform: translateZ(0);
 }
-.tt-week { contain: layout style paint; }
-
-/* ===== 课表列宽：纯 CSS 自适应视口，一屏正好 5 天 ===== */
-.tt-week { flex: 0 0 auto; width: auto; }
+.tt-week {
+  flex: 0 0 auto;
+  contain: layout style paint;
+}
 .tt-week .timetable {
   grid-template-columns: 26px repeat(7, calc((100vw - 66px) / 5)) !important;
   width: max-content !important;
 }
-
-
 
