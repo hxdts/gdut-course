@@ -1355,7 +1355,7 @@
     var pageW = 26 + colW * 7 + 24;
     state.pageW = pageW;
     var html = '<div class="tt-scroll" id="ttScroll">' +
-      '<div class="tt-strip" style="width:' + (pageW * 3) + 'px">' +
+      '<div class="tt-strip" id="ttStrip" style="width:' + (pageW * 3) + 'px">' +
       '<div class="tt-week" style="width:' + pageW + 'px">' + buildPane(prevC, colW) + '</div>' +
       '<div class="tt-week" style="width:' + pageW + 'px">' + buildPane(cs, colW) + '</div>' +
       '<div class="tt-week" style="width:' + pageW + 'px">' + buildPane(nextC, colW) + '</div>' +
@@ -1923,7 +1923,7 @@
       if (!r.width) return 0;
       var p = (clientX - r.left) / r.width;
       p = Math.max(0, Math.min(1, p));
-      return Math.round(p * 100);
+      return Math.round(p * 100 / 5) * 5;   // 每 5% 一档，和字号一致
     }
 
     thumb.addEventListener('pointerdown', function (e) {
@@ -2527,79 +2527,99 @@
       applyWallFit(fit);
     });
   }
-  /* ================= 课表：三周连续条带，滚动跨周 ================= */
+  /* ================= 课表：三周条带，手势平移 + CSS transition 回弹 ================= */
+  var ttSwipe = { pos: 0, startX: 0, startPos: 0, dragging: false, pageW: 1, vpW: 1 };
+
+  function ttSetPos(x, animate) {
+    var strip = $('#ttStrip');
+    var sc = $('#ttScroll');
+    if (!strip || !sc) return;
+    var max = ttSwipe.pageW * 3 - ttSwipe.vpW;
+    ttSwipe.pos = Math.max(0, Math.min(max, x));
+    // 关键：动画交给 CSS transition，浏览器合成层执行，跟手且流畅
+    strip.style.transition = animate ? 'transform .38s cubic-bezier(.22,.68,.36,1)' : 'none';
+    strip.style.transform = 'translateX(' + (-ttSwipe.pos) + 'px)';
+  }
+
   function initTTSwipe() {
     var sc = $('#ttScroll');
-    if (!sc) return;
+    var strip = $('#ttStrip');
+    if (!sc || !strip) return;
 
-    // 首次进入：居中到本周（中间页），若今天是周末则再往右偏
-    var pageW = state.pageW || 1;
+    ttSwipe.pageW = state.pageW || 1;
+    ttSwipe.vpW = sc.clientWidth || 1;
+
     if (!sc.__inited) {
       sc.__inited = true;
       var d = new Date().getDay();
-      var off = (d === 0 || d === 6) ? pageW - sc.clientWidth : 0;
-      sc.scrollLeft = pageW + Math.max(0, off);
+      var base = ttSwipe.pageW;
+      if (d === 0 || d === 6) {
+        base = ttSwipe.pageW + Math.max(0, ttSwipe.pageW - ttSwipe.vpW);
+      }
+      ttSetPos(base, false);
+    } else {
+      ttSetPos(ttSwipe.pageW, false);
     }
 
     if (sc.__bound) return;
     sc.__bound = true;
 
-    var timer = null;
-    sc.addEventListener('scroll', function () {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(onScrollEnd, 110);
+    function xOf(e) {
+      if (e.touches && e.touches.length) return e.touches[0].clientX;
+      return e.clientX;
+    }
+
+    function onStart(e) {
+      ttSwipe.dragging = true;
+      ttSwipe.startX = xOf(e);
+      ttSwipe.startPos = ttSwipe.pos;
+      ttSetPos(ttSwipe.pos, false);
+    }
+
+    function onMove(e) {
+      if (!ttSwipe.dragging) return;
+      var dx = xOf(e) - ttSwipe.startX;
+      ttSetPos(ttSwipe.startPos - dx, false);
+    }
+
+    function onEnd() {
+      if (!ttSwipe.dragging) return;
+      ttSwipe.dragging = false;
+      var pw = ttSwipe.pageW;
+      var vp = ttSwipe.vpW;
+      var leftEdge = pw;
+      var rightEdge = 2 * pw - vp;
+      var p = ttSwipe.pos;
+
+      // 越过相邻周 18% 就换周，否则弹回本周
+      if (p < leftEdge - pw * 0.18) {
+        goWeek(-1);
+      } else if (p > rightEdge + pw * 0.18) {
+        goWeek(1);
+      } else if (p < leftEdge) {
+        ttSetPos(leftEdge, true);
+      } else if (p > rightEdge) {
+        ttSetPos(rightEdge, true);
+      }
+    }
+
+    sc.addEventListener('touchstart', onStart, { passive: true });
+    sc.addEventListener('touchmove', onMove, { passive: true });
+    sc.addEventListener('touchend', onEnd, { passive: true });
+    sc.addEventListener('touchcancel', onEnd, { passive: true });
+
+    sc.addEventListener('mousedown', function (e) {
+      if (e.button !== 0) return;
+      onStart(e);
     });
-
-    function onScrollEnd() {
-      var pw = state.pageW || 1;
-      var p = sc.scrollLeft;
-      var vp = sc.clientWidth;
-      var leftEdge = pw;              // 本周页开头
-      var rightEdge = 2 * pw - vp;    // 本周页滚到头的位置
-
-      // 已经滑进「上一周」区域
-      if (p < leftEdge - 1) {
-        if (p < leftEdge - pw * 0.22) {
-          goWeek(-1);
-        } else {
-          // 没越过阈值：平滑回弹到本周开头
-          smoothScroll(sc, leftEdge);
-        }
-        return;
-      }
-
-      // 已经滑进「下一周」区域
-      if (p > rightEdge + 1) {
-        if (p > rightEdge + pw * 0.22) {
-          goWeek(1);
-        } else {
-          smoothScroll(sc, rightEdge);
-        }
-      }
-    }
-
-    /** 自己实现缓动回弹：时长适中、先快后慢，比浏览器默认的 smooth 更柔和 */
-    var animId = null;
-    function smoothScroll(el, target, duration) {
-      duration = duration || 420;
-      if (animId) cancelAnimationFrame(animId);
-      var start = el.scrollLeft;
-      var delta = target - start;
-      if (Math.abs(delta) < 1) { el.scrollLeft = target; return; }
-      var t0 = (window.performance && performance.now) ? performance.now() : Date.now();
-      function step(now) {
-        var t = ((now || Date.now()) - t0) / duration;
-        if (t > 1) t = 1;
-        var e = 1 - Math.pow(1 - t, 3);   // ease-out cubic
-        el.scrollLeft = start + delta * e;
-        if (t < 1) animId = requestAnimationFrame(step);
-        else animId = null;
-      }
-      animId = requestAnimationFrame(step);
-    }
+    document.addEventListener('mousemove', function (e) {
+      if (!ttSwipe.dragging) return;
+      onMove(e);
+    });
+    document.addEventListener('mouseup', onEnd);
   }
 
-  function resetSwipeOffset() { /* 由 renderTimetable 负责居中 */ }
+  function resetSwipeOffset() { }
   $('#rowWallpaper').addEventListener('click', function () {
     call('pickWallpaper').catch(function () {
       toast('无法打开相册');
@@ -2867,6 +2887,8 @@
   bindLoginCheckboxes();
   boot();
 })();
+
+
 
 
 
