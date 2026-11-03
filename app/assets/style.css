@@ -1141,3 +1141,13 @@ body.dark-theme .tt-dots i { background: rgba(255,255,255,.25); }
   width: max-content !important;
 }
 
+
+/* 课表还没有数据时的提示：避免留一片空白让人以为卡住 */
+.tt-empty-hint {
+  margin: 26px auto 0;
+  max-width: 78vw;
+  text-align: center;
+  color: var(--sub, #8a90a0);
+  font-size: calc(13px * var(--fs, 1));
+  line-height: 1.7;
+}
