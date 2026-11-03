@@ -2544,14 +2544,14 @@
   /* ================= 课表：三周条带，手势平移 + CSS transition 回弹 ================= */
   var ttSwipe = { pos: 0, startX: 0, startPos: 0, dragging: false, pageW: 1, vpW: 1 };
 
-  function ttSetPos(x, animate) {
+  function ttSetPos(x, animate, dur) {
     var strip = $('#ttStrip');
     var sc = $('#ttScroll');
     if (!strip || !sc) return;
     var max = ttSwipe.pageW * 3 - ttSwipe.vpW;
     ttSwipe.pos = Math.max(0, Math.min(max, x));
-    // 关键：动画交给 CSS transition，浏览器合成层执行，跟手且流畅
-    strip.style.transition = animate ? 'transform 3s cubic-bezier(.33,.75,.3,1)' : 'none';
+    // 换页用长动画（默认 3000ms），回弹传 320 走短动画
+    strip.style.transition = animate ? ('transform ' + (dur || 3000) + 'ms cubic-bezier(.3,.74,.3,1)') : 'none';
     strip.style.transform = 'translateX(' + (-ttSwipe.pos) + 'px)';
   }
 
@@ -2604,16 +2604,25 @@
       var leftEdge = pw;
       var rightEdge = 2 * pw - vp;
       var p = ttSwipe.pos;
+      var DUR = 3000;   // 换页动画时长（跟 ttSetPos 的 transition 一致）
 
-      // 越过相邻周 18% 就换周，否则弹回本周
+      // 越过相邻周 18%：先把整页滑完（看得见的换页动画），动画结束后再换数据
       if (p < leftEdge - pw * 0.18) {
-        goWeek(-1);
-      } else if (p > rightEdge + pw * 0.18) {
-        goWeek(1);
-      } else if (p < leftEdge) {
-        ttSetPos(leftEdge, true);
+        ttSetPos(0, true);
+        setTimeout(function () { goWeek(-1); }, DUR);
+        return;
+      }
+      if (p > rightEdge + pw * 0.18) {
+        ttSetPos(pw * 2, true);
+        setTimeout(function () { goWeek(1); }, DUR);
+        return;
+      }
+
+      // 没过阈值：弹回本周边界
+      if (p < leftEdge) {
+        ttSetPos(leftEdge, true, 320);
       } else if (p > rightEdge) {
-        ttSetPos(rightEdge, true);
+        ttSetPos(rightEdge, true, 320);
       }
     }
 
@@ -2901,6 +2910,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
