@@ -1143,3 +1143,14 @@ body.dark-theme .tt-dots i { background: rgba(255,255,255,.25); }
   width: 100% !important;
   gap: 3px !important;
 }
+
+/* 勾选框：让点击始终落在行容器上，避免 SVG 子元素吞掉事件 */
+.agree-row .box,
+.agree-row .box svg,
+.agree-row .box svg *,
+.agree-row .txt {
+  pointer-events: none;
+}
+.agree-row .lnk {
+  pointer-events: auto;   /* 协议链接仍需可点 */
+}
