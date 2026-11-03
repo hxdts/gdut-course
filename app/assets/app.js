@@ -3247,10 +3247,23 @@
   function boot() {
     if (__booted) return;
     __booted = true;
-    // 先把原生备份里的设置补回本地（更新/重装后不丢外观设置）
-    restorePrefs(function () {
-      bootInner();
-    });
+    var innerDone = false;
+    function go() {
+      if (innerDone) return;
+      innerDone = true;
+      try {
+        bootInner();
+      } catch (e) {
+        var bm2 = document.getElementById('bootMask');
+        if (bm2) bm2.remove();
+        var lg2 = document.getElementById('login');
+        if (lg2) lg2.classList.remove('hidden');
+      }
+    }
+    // 兜底：原生那边的设置备份如果没按时回调，2.5 秒后直接启动，
+    // 不能因为等一个可选步骤让用户只看到一片背景色
+    setTimeout(go, 2500);
+    restorePrefs(go);
   }
 
   function bootInner() {
@@ -3452,6 +3465,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
