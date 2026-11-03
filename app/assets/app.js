@@ -3193,9 +3193,75 @@
     });
   })();
 
+  /* ================= 手势诊断（连点"我的"里的版本号 6 次开启） ================= */
+  var gdbg = { on: false, down: 0, move: 0, up: 0, cancel: 0, lastEvt: '-', lastPos: 0, lastVel: 0, week: '-' };
+
+  function gdbgRender() {
+    var el = document.getElementById('gdbg');
+    if (!el) return;
+    if (!gdbg.on) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    var st = (typeof ttSwipe !== 'undefined') ? ttSwipe : {};
+    el.textContent =
+      '事件  down:' + gdbg.down + ' move:' + gdbg.move +
+      ' up:' + gdbg.up + ' cancel:' + gdbg.cancel + '\n' +
+      '手势  active:' + (st.active ? 1 : 0) + ' ended:' + (st.ended ? 1 : 0) +
+      ' axis:' + (st.axis || '-') + ' swap:' + (st.cancelSwap ? 1 : 0) + '\n' +
+      '位移  pos:' + Math.round(st.pos || 0) +
+      '  pageW:' + Math.round(st.pageW || 0) +
+      '  vp:' + Math.round(st.vpW || 0) + '\n' +
+      '判定  阈值Edge:' + (typeof TT_EDGE_PX !== 'undefined' ? TT_EDGE_PX : '?') +
+      '  vel:' + (gdbg.lastVel.toFixed(2)) + '\n' +
+      '周次  ' + gdbg.week + '   最后事件: ' + gdbg.lastEvt;
+  }
+
+  function gdbgInit() {
+    if (gdbg.__bound) return;
+    gdbg.__bound = true;
+    ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'].forEach(function (t) {
+      document.addEventListener(t, function (ev) {
+        if (!gdbg.on) return;
+        if (!ev.target || !ev.target.closest) return;
+        if (!ev.target.closest('#ttScroll')) return;
+        if (t === 'pointerdown') gdbg.down++;
+        else if (t === 'pointermove') gdbg.move++;
+        else if (t === 'pointerup') gdbg.up++;
+        else gdbg.cancel++;
+        gdbg.lastEvt = t.replace('pointer', '');
+        gdbg.week = ($('#weekLabel') || {}).textContent || '-';
+        if (typeof ttSwipe !== 'undefined' && ttSwipe.samples && ttSwipe.samples.length >= 2) {
+          var sp = ttSwipe.samples;
+          var a = sp[0], b = sp[sp.length - 1];
+          var dt = b.t - a.t;
+          gdbg.lastVel = dt > 0 ? (b.x - a.x) / dt : 0;
+        }
+        gdbgRender();
+      }, true);
+    });
+  }
+
+  // 连点版本号 6 次开关
+  var gdbgTaps = 0, gdbgTapTimer = null;
+  document.addEventListener('click', function (ev) {
+    var t = ev.target;
+    if (!t || !t.closest) return;
+    if (!t.closest('#verMeta')) return;
+    gdbgTaps++;
+    if (gdbgTapTimer) clearTimeout(gdbgTapTimer);
+    gdbgTapTimer = setTimeout(function () { gdbgTaps = 0; }, 900);
+    if (gdbgTaps >= 6) {
+      gdbgTaps = 0;
+      gdbg.on = !gdbg.on;
+      gdbgInit();
+      gdbgRender();
+      toast(gdbg.on ? '手势诊断已开启' : '手势诊断已关闭');
+    }
+  }, true);
   bindLoginCheckboxes();
   boot();
 })();
+
+
 
 
 
