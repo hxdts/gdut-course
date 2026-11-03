@@ -32,7 +32,6 @@ public class MainActivity extends android.app.Activity {
     private FrameLayout root;
     private WebView ui;
     private WebView site;
-    private android.widget.LinearLayout siteBar;
     private android.widget.ImageView splash;   // 启动图覆盖层，加载完成后淡出
     private Bridge bridge;
     private SharedPreferences sp;
@@ -79,56 +78,9 @@ public class MainActivity extends android.app.Activity {
 
         ui.loadUrl("file:///android_asset/index.html");
 
-        // ---- 站点页面的顶部返回条（最上层，保证永远能回到 App）----
-        buildSiteBar();
-        root.addView(siteBar, topBarParams());
         showSplash();   // 最后加，保证盖在所有东西上面
 
         cookieAccept();
-    }
-
-    /** 站点页面顶部的「返回 App」条：不依赖系统返回键，也不依赖网页历史。 */
-    private void buildSiteBar() {
-        float d = getResources().getDisplayMetrics().density;
-        int pad = (int) (12 * d);
-
-        siteBar = new android.widget.LinearLayout(this);
-        siteBar.setOrientation(android.widget.LinearLayout.HORIZONTAL);
-        siteBar.setBackgroundColor(0xFF2F6BFF);
-        siteBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        siteBar.setPadding(pad, statusBarHeight() + (int) (10 * d), pad, (int) (10 * d));
-
-        android.widget.TextView back = new android.widget.TextView(this);
-        back.setText("‹  返回 App");
-        back.setTextColor(0xFFFFFFFF);
-        back.setTextSize(15);
-        back.setPadding(0, (int) (4 * d), (int) (14 * d), (int) (4 * d));
-        back.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                hideSite();
-            }
-        });
-        siteBar.addView(back);
-
-        android.widget.TextView title = new android.widget.TextView(this);
-        title.setText("教务系统");
-        title.setTextColor(0xCCFFFFFF);
-        title.setTextSize(13);
-        siteBar.addView(title);
-
-        siteBar.setVisibility(View.GONE);
-    }
-
-    private FrameLayout.LayoutParams topBarParams() {
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.gravity = android.view.Gravity.TOP;
-        return lp;
-    }
-
-    private int statusBarHeight() {
-        int id = getResources().getIdentifier("status_bar_height", "dimen", "android");
-        return id > 0 ? getResources().getDimensionPixelSize(id) : 0;
     }
 
     private FrameLayout.LayoutParams match() {
@@ -156,10 +108,20 @@ public class MainActivity extends android.app.Activity {
             s.setAllowUniversalAccessFromFileURLs(true);
         } catch (Throwable ignored) {
         }
-        s.setLoadWithOverviewMode(false);
-        s.setUseWideViewPort(false);
-        s.setSupportZoom(false);
-        s.setBuiltInZoomControls(false);
+        s.setLoadWithOverviewMode(!isUi);
+        s.setUseWideViewPort(!isUi);
+        if (!isUi) {
+            // 站点 WebView：启用双指捏合缩放 + 双击缩放。
+            // 必须同时开启 SupportZoom 与 BuiltInZoomControls（后者提供捏合/双击手势），
+            // DisplayZoomControls(false) 隐藏右下角默认的 +/- 浮层，只保留手势。
+            // UseWideViewPort + LoadWithOverview 让页面按 viewport 宽度排版，缩放才自然。
+            s.setSupportZoom(true);
+            s.setBuiltInZoomControls(true);
+            s.setDisplayZoomControls(false);
+        } else {
+            s.setSupportZoom(false);
+            s.setBuiltInZoomControls(false);
+        }
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         if (!isUi) {
@@ -260,7 +222,6 @@ public class MainActivity extends android.app.Activity {
         runOnUiThread(new Runnable() {
             public void run() {
                 ui.setVisibility(View.GONE);
-                siteBar.setVisibility(View.VISIBLE);
                 site.setVisibility(View.VISIBLE);
                 site.loadUrl(url);
             }
@@ -271,7 +232,6 @@ public class MainActivity extends android.app.Activity {
         runOnUiThread(new Runnable() {
             public void run() {
                 site.setVisibility(View.GONE);
-                siteBar.setVisibility(View.GONE);
                 ui.setVisibility(View.VISIBLE);
                 // 回到 App 后让前端重新检查一次登录态（网页登录成功后可直接进主界面）
                 evalUi("window.__onBackToApp && window.__onBackToApp()");

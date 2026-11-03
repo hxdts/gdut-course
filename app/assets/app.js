@@ -273,7 +273,7 @@
     'theme', 'palette', 'courseOpacity', 'fontScale', 'ttFontScale',
     'textColors', 'stroke', 'wallpaper', 'wallLum',
     'agreed', 'rememberPwd', 'savedSid', 'savedPwd',
-    'term', 'termStart', 'termStartDate'
+    'term', 'termStart', 'termStartDate', 'surfaceOpacity'
   ];
 
   var prefTimer = null;
@@ -665,7 +665,7 @@
         renderFitness();
         renderDiagnostics();
         if (state.updatedAt) renderLastUpdated();
-        else setWho(state.sid ? '学号 ' + state.sid : '已连接教务系统');
+        else setWho('上次刷新：—');
       } catch (err) { /* 渲染异常不能卡住刷新状态 */ }
     };
 
@@ -800,7 +800,7 @@
   }
 
   function setWho(text) {
-    var el = $('#whoLine');
+    var el = $('#refreshTime');
     if (el) el.textContent = text;
   }
 
@@ -878,7 +878,7 @@
   }
 
   function renderLastUpdated() {
-    var el = $('#whoLine');
+    var el = $('#refreshTime');
     if (!el) return;
 
     function fmt(dt) {
@@ -887,11 +887,11 @@
     }
 
     if (state.offline && state.offlineAt) {
-      el.textContent = fmt(new Date(state.offlineAt)) + ' · 离线';
+      el.textContent = '上次刷新：' + fmt(new Date(state.offlineAt)) + ' · 离线';
       return;
     }
     if (!state.updatedAt) return;
-    el.textContent = fmt(new Date(state.updatedAt)) + ' 更新';
+    el.textContent = '上次刷新：' + fmt(new Date(state.updatedAt));
   }
 
   /** 跳转到指定教学周：不显示全屏遮罩（会白闪），改用标签微提示 + 滑动动画 */
@@ -1594,6 +1594,7 @@
         existStrip.children[0].innerHTML = buildPane(prevC.courses, daysOfWeek(curW - 1));
       }
       renderCourseList(cs);
+      renderTtTasks();
       $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
       state.lastDir = 0;
       state.forceRebuild = false;
@@ -1604,10 +1605,13 @@
 
     var days = ['一', '二', '三', '四', '五', '六', '日'];
     html += '<div class="card" id="courseListCard" style="margin-top:12px"></div>';
+    // 任务区块：与「当日任务」栏数据同源，增删改勾选后两边同步
+    html += '<div class="card" id="ttTasksCard" style="margin-top:12px"></div>';
 
     wrap.innerHTML = html + (state.emptyHint ? '<div class="tt-empty-hint">' + esc(state.emptyHint) + '</div>' : '');
     state.forceRebuild = false;
     renderCourseList(cs);
+    renderTtTasks();
     $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
 
     // 每次重建后：复位并绑定滚动跨周
@@ -1620,9 +1624,22 @@
         var t = e.target;
         if (!t || !t.closest) return;
         var dot = t.closest('.cc-dot');
-        if (!dot) return;
-        var nm = dot.getAttribute('data-name');
-        if (nm) showCourseColorPicker(nm);
+        if (dot) {
+          var nm = dot.getAttribute('data-name');
+          if (nm) showCourseColorPicker(nm);
+          return;
+        }
+        // 课表页任务区块：勾选完成 / 修改 / 删除（与「当日任务」栏同步）
+        var chk = t.closest('[data-id]');
+        if (!chk) return;
+        var id = chk.getAttribute('data-id');
+        if (chk.classList.contains('sg-chk')) {
+          toggleTask(id);
+        } else if (chk.classList.contains('sg-edit')) {
+          editTask(id);
+        } else if (chk.classList.contains('sg-del')) {
+          deleteTask(id);
+        }
       });
     }
   }
@@ -1776,6 +1793,353 @@
     wrap.innerHTML = rowsToCards(rows);
   }
 
+  /* ================= 当日任务：查看当天课程 + 任务增删改（任务同步到课表栏） ================= */
+  var SCHEDULE_KEY = 'tasks';
+
+  function loadTasks() {
+    try {
+      var s = localStorage.getItem(SCHEDULE_KEY);
+      return s ? JSON.parse(s) : [];
+    } catch (e) { return []; }
+  }
+
+  function saveTasks(list) {
+    try { localStorage.setItem(SCHEDULE_KEY, JSON.stringify(list)); } catch (e) {}
+  }
+
+  function todayYmd() {
+    var t = new Date();
+    return t.getFullYear() + '-' + two(t.getMonth() + 1) + '-' + two(t.getDate());
+  }
+
+  function fmtTime(v) {
+    if (!v) return '';
+    var p = String(v).split(':');
+    var h = parseInt(p[0], 10);
+    var m = parseInt(p[1], 10);
+    if (isNaN(h)) return '';
+    var ampm = h < 12 ? '上午' : '下午';
+    var hh = h % 12 === 0 ? 12 : h % 12;
+    return ampm + ' ' + hh + ':' + (isNaN(m) ? '00' : two(m));
+  }
+
+  /** 今天（相对本周）是星期几，1-7；用于从课表里筛当天课程 */
+  function todayDayOfWeek() {
+    var d = new Date().getDay();
+    return d === 0 ? 7 : d;
+  }
+
+  /** 取「当天」的课程列表（从当前周课表里按 day 匹配，并按节次排序） */
+  function todayCourses() {
+    var dw = todayDayOfWeek();
+    var cs = (state.courses || []).filter(function (c) { return c.day === dw; });
+    cs.sort(function (a, b) { return (a.start || 99) - (b.start || 99); });
+    return cs;
+  }
+
+  /** 给任务生成一个可复用的主题色（按名称散列，视觉与课程配色一致） */
+  function taskColor(name) {
+    var c = getCourseColors();
+    if (c[name]) return c[name];
+    if (!state.__colorMap) rebuildColorMap();
+    var map = state.__colorMap || {};
+    if (map[name]) return map[name];
+    var pal = currentPalette();
+    var h = 0;
+    for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+    return pal.colors[h % pal.colors.length];
+  }
+
+  /** 任务数据变化后：同时刷新「当日任务」栏与「课表」页的任务区块，保证两边同步 */
+  function refreshTasks() {
+    renderSchedule();
+    renderTtTasks();
+  }
+
+  /** 格式化时间段显示：开始 - 结束（无结束时间则只显示开始，无开始则「未设时间」） */
+  function fmtTimeRange(t) {
+    var s = t.time || '';
+    var e = t.timeEnd || '';
+    if (!s && !e) return '未设时间';
+    if (s && e) return fmtTime(s) + ' - ' + fmtTime(e);
+    return s ? fmtTime(s) : '至 ' + fmtTime(e);
+  }
+
+  /** 任务编辑弹窗：支持「任务名」+「任务时间段」两个输入，可新增也可编辑 */
+  function taskDialog(o) {
+    o = o || {};
+    var el = document.createElement('div');
+    el.className = 'ui-modal';
+    var html = '<div class="ui-card" style="max-width:330px">';
+    html += '<div class="ui-title">' + esc(o.title || '任务') + '</div>';
+    html += '<input class="ui-input" id="tkName" type="text" value="' + esc(o.name || '') + '" placeholder="任务名（例如：复习高数）">';
+    html += '<div class="tk-time-row">' +
+      '<input class="ui-input tk-time" id="tkStart" type="time" value="' + esc(o.time || '') + '">' +
+      '<span class="tk-sep">至</span>' +
+      '<input class="ui-input tk-time" id="tkEnd" type="time" value="' + esc(o.timeEnd || '') + '">' +
+      '</div>';
+    html += '<div class="ui-actions">';
+    if (o.cancelText !== false) html += '<button class="ui-btn ui-cancel">' + esc(o.cancelText || '取消') + '</button>';
+    html += '<button class="ui-btn ui-ok">' + esc(o.okText || '确定') + '</button>';
+    html += '</div></div>';
+    el.innerHTML = html;
+    document.body.appendChild(el);
+
+    var nameEl = el.querySelector('#tkName');
+    var startEl = el.querySelector('#tkStart');
+    var endEl = el.querySelector('#tkEnd');
+    setTimeout(function () { try { nameEl.focus(); } catch (e) {} }, 120);
+
+    function close() {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }
+
+    var cancelBtn = el.querySelector('.ui-cancel');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function () { close(); if (o.onCancel) o.onCancel(); });
+    }
+    el.querySelector('.ui-ok').addEventListener('click', function () {
+      var name = (nameEl.value || '').trim();
+      var time = startEl.value || '';
+      var timeEnd = endEl.value || '';
+      close();
+      if (o.onOk) o.onOk(name, time, timeEnd);
+    });
+  }
+
+  /** 新增任务：填写任务名 + 时间段 */
+  function showAddTask() {
+    taskDialog({
+      title: '新建任务',
+      okText: '添加',
+      onOk: function (name, time, timeEnd) {
+        if (!name) { toast('任务名不能为空'); return; }
+        if (time && timeEnd && timeEnd <= time) { toast('结束时间需晚于开始时间'); return; }
+        var list = loadTasks();
+        list.push({
+          id: 't' + Date.now(),
+          name: name,
+          date: todayYmd(),
+          time: time,
+          timeEnd: timeEnd,
+          done: false
+        });
+        saveTasks(list);
+        refreshTasks();
+        toast('已添加任务');
+      }
+    });
+  }
+
+  /** 修改任务：预填任务名与时间段 */
+  function editTask(id) {
+    var list = loadTasks();
+    var target = null;
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) { target = list[i]; break; }
+    if (!target) return;
+    taskDialog({
+      title: '修改任务',
+      name: target.name,
+      time: target.time,
+      timeEnd: target.timeEnd,
+      okText: '保存',
+      onOk: function (name, time, timeEnd) {
+        if (!name) { toast('任务名不能为空'); return; }
+        if (time && timeEnd && timeEnd <= time) { toast('结束时间需晚于开始时间'); return; }
+        for (var j = 0; j < list.length; j++) {
+          if (list[j].id === id) {
+            list[j].name = name;
+            list[j].time = time;
+            list[j].timeEnd = timeEnd;
+            break;
+          }
+        }
+        saveTasks(list);
+        refreshTasks();
+        toast('已保存修改');
+      }
+    });
+  }
+
+  /** 删除任务：二次确认后移除 */
+  function deleteTask(id) {
+    var list = loadTasks();
+    var target = null;
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) { target = list[i]; break; }
+    if (!target) return;
+    uiDialog({
+      title: '删除任务',
+      message: '确定删除「' + target.name + '」吗？',
+      okText: '删除',
+      cancelText: '取消',
+      onOk: function () {
+        var n = [];
+        for (var j = 0; j < list.length; j++) if (list[j].id !== id) n.push(list[j]);
+        saveTasks(n);
+        refreshTasks();
+        toast('已删除');
+      }
+    });
+  }
+
+  /** 切换任务完成状态 */
+  function toggleTask(id) {
+    var list = loadTasks();
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === id) { list[i].done = !list[i].done; break; }
+    }
+    saveTasks(list);
+    refreshTasks();
+  }
+
+  /** 渲染「课表」页底部的任务区块（与「当日任务」栏数据同源，实时同步） */
+  function renderTtTasks() {
+    var card = $('#ttTasksCard');
+    if (!card) return;
+    var tasks = loadTasks();
+    var today = todayYmd();
+    var html = '<div class="card-title">我的任务 · ' + tasks.length + ' 项' +
+      '<span class="tt-task-add" id="ttTaskAdd">＋ 新建</span></div>';
+    if (!tasks.length) {
+      html += '<div class="muted" style="padding:4px 0 8px">还没有任务，点「＋ 新建」添加，任务会显示在这里和「当日任务」栏。</div>';
+    } else {
+      tasks.slice().sort(function (a, b) {
+        if (a.done !== b.done) return a.done ? 1 : -1;
+        return (a.date || '') < (b.date || '') ? 1 : -1;
+      }).forEach(function (t) {
+        var isToday = t.date === today;
+        html += '<div class="course-row" data-id="' + t.id + '">' +
+          '<div class="sg-chk' + (t.done ? ' on' : '') + '" data-id="' + t.id + '">' +
+            (t.done ? '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>' : '') +
+          '</div>' +
+          '<div style="flex:1">' +
+            '<div class="nm' + (t.done ? ' sg-done' : '') + '">' + esc(t.name) + '</div>' +
+            '<div class="meta">' + ((t.time || t.timeEnd) ? esc(fmtTimeRange(t)) + ' · ' : '') +
+              (isToday ? '今天' : esc(t.date)) + '</div>' +
+          '</div>' +
+          '<div class="sg-edit" data-id="' + t.id + '">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>' +
+          '</div>' +
+          '<div class="sg-del" data-id="' + t.id + '">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l.8 12.2A2 2 0 0 0 9.3 21h5.4a2 2 0 0 0 2-1.8L17.5 7"/></svg>' +
+          '</div>' +
+        '</div>';
+      });
+    }
+    card.innerHTML = html;
+    var add = $('#ttTaskAdd');
+    if (add) add.addEventListener('click', showAddTask);
+  }
+
+  function renderSchedule() {
+    var wrap = $('#scheduleWrap');
+    if (!wrap) return;
+    var tasks = loadTasks();
+    var today = todayYmd();
+    var todayCs = todayCourses();
+    var dw = todayDayOfWeek();
+    var weekNames = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+
+    // 当天任务（按时间排序）
+    var todays = tasks.filter(function (t) { return t.date === today; });
+    todays.sort(function (a, b) {
+      return (a.time || '99:99').localeCompare(b.time || '99:99');
+    });
+
+    var html = '';
+
+    // ---- 今日任务（合并：当天课程 + 当天任务） ----
+    html += '<div class="card"><div class="card-title">今日任务 · ' +
+      weekNames[dw] + ' ' + fmtMd(new Date()) + '</div>';
+
+    var hasCourse = todayCs.length > 0;
+    var hasTask = todays.length > 0;
+
+    if (!hasCourse && !hasTask) {
+      html += '<div class="muted" style="padding:6px 0 10px">今天还没有课程或任务，点下方「新建任务」添加。</div>';
+    } else {
+      html += '<div class="tl">';
+
+      // 先展示当天课程（课程与任务统一时间线，课程在任务之前，各自内部按时间排序）
+      todayCs.forEach(function (c) {
+        html += '<div class="tl-item is-course">' +
+          '<div class="tl-dot" style="background:' + colorOf(c.name) + '"></div>' +
+          '<div class="tl-body">' +
+            '<div class="tl-name">' + esc(c.name) + '</div>' +
+            '<div class="tl-meta">第 ' + c.start + '-' + c.end + ' 节' +
+              (c.room ? ' · ' + esc(c.room) : '') +
+              (c.teacher ? ' · ' + esc(c.teacher) : '') + '</div>' +
+          '</div>' +
+          '<div class="tl-time">' + sectionTime(c.start, c.end) + '</div>' +
+        '</div>';
+      });
+
+      // 再展示当天任务（可勾选、修改、删除）
+      todays.forEach(function (t) {
+        html += '<div class="tl-item' + (t.done ? ' done' : '') + '">' +
+          '<div class="tl-dot" style="background:' + taskColor(t.name) + '"></div>' +
+          '<div class="tl-body">' +
+            '<div class="tl-name">' + esc(t.name) + '</div>' +
+            '<div class="tl-meta">' + fmtTimeRange(t) + '</div>' +
+          '</div>' +
+          '<div class="tl-ops">' +
+            '<div class="tl-edit" data-id="' + t.id + '">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>' +
+            '</div>' +
+            '<div class="tl-del" data-id="' + t.id + '">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l.8 12.2A2 2 0 0 0 9.3 21h5.4a2 2 0 0 0 2-1.8L17.5 7"/></svg>' +
+            '</div>' +
+            '<div class="tl-chk" data-id="' + t.id + '">' +
+              (t.done ? '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>' : '') +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      });
+
+      html += '</div>';
+    }
+    html += '</div>';
+
+    // ---- 底部新建按钮 ----
+    html += '<button class="sg-add" id="sgAdd">+ 新建任务</button>';
+
+    wrap.innerHTML = html;
+
+    // 事件绑定
+    var addBtn = $('#sgAdd');
+    if (addBtn) addBtn.addEventListener('click', showAddTask);
+
+    // 关键：wrap 本身不随 innerHTML 重建，委托监听器必须只绑一次，
+    // 否则每次 renderSchedule 都会叠加一个监听器，点一次会触发多次（弹多个确认框）
+    if (!wrap.__taskBound) {
+      wrap.__taskBound = true;
+      wrap.addEventListener('click', function (e) {
+        var t = e.target;
+        if (!t || !t.closest) return;
+        var chk = t.closest('[data-id]');
+        if (!chk) return;
+        var id = chk.getAttribute('data-id');
+        if (chk.classList.contains('tl-chk')) {
+          toggleTask(id);
+        } else if (chk.classList.contains('tl-edit')) {
+          editTask(id);
+        } else if (chk.classList.contains('tl-del')) {
+          deleteTask(id);
+        }
+      });
+    }
+  }
+
+  /** 把节次换算成大致时间（供「当日任务」栏展示课程时间） */
+  function sectionTime(start, end) {
+    var base = [null, '08:30', '09:20', '10:20', '11:10', '14:00', '14:50', '15:50', '16:40', '19:00', '19:50', '20:40', '21:30'];
+    var s = base[start];
+    if (!s) return '';
+    var e = base[end + 1];
+    if (!e) return s;
+    return s + ' - ' + e;
+  }
+
   function emptyState(title, desc, action) {
     return '<div class="empty">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="#2f6bff" stroke-width="1.4" stroke-linecap="round">' +
@@ -1798,7 +2162,7 @@
   }
 
   /* ================= 页面切换 ================= */
-  var TITLES = { tt: '我的课表', grade: '成绩与绩点', cet: '英语四六级', fit: '体测成绩', me: '我的' };
+  var TITLES = { tt: '我的课表', grade: '成绩与绩点', cet: '英语四六级', fit: '体测成绩', schedule: '当日任务', me: '我的' };
 
   function switchPage(p) {
     $$('.tab').forEach(function (t) { t.classList.toggle('active', t.dataset.page === p); });
@@ -1806,6 +2170,8 @@
     var page = $('#page-' + p);
     if (page) page.classList.add('active');
     if ($('#pageTitle')) $('#pageTitle').textContent = TITLES[p] || '广工课表';
+    if (p === 'schedule') renderSchedule();
+    if (p === 'tt') renderTtTasks();   // 切到课表时刷新任务区块，保证与「当日任务」栏同步
     $('.content').scrollTop = 0;
   }
 
@@ -1961,6 +2327,63 @@
     var thumb = $('#opacityThumb');
     if (fill) fill.style.width = v + '%';
     if (thumb) thumb.style.left = v + '%';
+  }
+
+  /** 白色透明度：控制卡片、底部导航等白色表面的透明度。100 = 完全不透明，0 = 全透明 */
+  function getSurfaceOpacity() {
+    var v = 100;
+    try { v = parseInt(localStorage.getItem('surfaceOpacity') || '100', 10); } catch (e) {}
+    if (isNaN(v)) v = 100;
+    return Math.min(100, Math.max(0, v));
+  }
+
+  function applySurfaceOpacity(v) {
+    try { localStorage.setItem('surfaceOpacity', String(v)); } catch (e) {}
+    document.documentElement.style.setProperty('--surface-op', (v / 100).toFixed(2));
+    var lab = $('#surfaceOpacityVal');
+    if (lab) lab.textContent = v + '%';
+    var fill = $('#surfaceOpacityFill');
+    var thumb = $('#surfaceOpacityThumb');
+    if (fill) fill.style.width = v + '%';
+    if (thumb) thumb.style.left = v + '%';
+  }
+
+  function initSurfaceOpacity() {
+    applySurfaceOpacity(getSurfaceOpacity());
+    var slider = $('#surfaceOpacitySlider');
+    var thumb = $('#surfaceOpacityThumb');
+    if (!slider || !thumb) return;
+
+    var dragging = false;
+    function posToVal(clientX) {
+      var r = slider.getBoundingClientRect();
+      if (!r.width) return 100;
+      var p = (clientX - r.left) / r.width;
+      p = Math.max(0, Math.min(1, p));
+      return Math.round(p * 100 / 5) * 5;   // 每 5% 一档
+    }
+    thumb.addEventListener('pointerdown', function (e) {
+      dragging = true;
+      thumb.classList.add('dragging');
+      try { thumb.setPointerCapture(e.pointerId); } catch (err) {}
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    slider.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      applySurfaceOpacity(posToVal(e.clientX));
+      e.preventDefault();
+    });
+    function endDrag(e) {
+      if (!dragging) return;
+      dragging = false;
+      thumb.classList.remove('dragging');
+      try { thumb.releasePointerCapture(e.pointerId); } catch (err) {}
+      if (typeof backupPrefs === 'function') backupPrefs();
+    }
+    slider.addEventListener('pointerup', endDrag);
+    slider.addEventListener('pointercancel', endDrag);
+    slider.addEventListener('pointerleave', endDrag);
   }
 
   /* ================= 课表文字字号（五类独立） ================= */
@@ -2626,6 +3049,9 @@
     applyCourseOpacity(getCourseOpacity());
     initOpacitySlider();
 
+    // 白色透明度（卡片、底部导航等白色表面的透明度）
+    initSurfaceOpacity();
+
 
     // 课表文字字号（五类独立）
     initTtFontScale();
@@ -3231,13 +3657,7 @@
     });
   }
 
-  /** 启动时静默检查一次更新：有新版本才弹窗，没问题就不打扰 */
-  function autoCheckUpdate() {
-    call('checkUpdate', {}).then(function (r) {
-      if (!r || !r.configured || r.error || !r.hasUpdate) return;
-      setTimeout(function () { promptUpdate(r); }, 700);
-    }).catch(function () {});
-  }
+  // （更新改为手动触发，autoCheckUpdate 已移除。用户通过「我的 → 在线检查更新」调用 doCheckUpdate。）
 
   // 站点页面加载完成
   window.__siteState = function (url) {
@@ -3346,7 +3766,7 @@
     // 通知原生：界面已经画出来了，可以撤掉启动图
     try { if (window.Native && window.Native.splashDone) window.Native.splashDone(); } catch (e) {}
       $('#login').classList.add('hidden');
-      if ($('#whoLine')) $('#whoLine').textContent = '浏览器预览模式';
+      if ($('#refreshTime')) $('#refreshTime').textContent = '浏览器预览模式';
       if (location.search.indexOf('mock') >= 0) fillMock();
       
       renderTimetable();
@@ -3381,7 +3801,7 @@
         state.sid = s.sid || '';
         state.name = s.name || '';
         enterApp();
-        setTimeout(autoCheckUpdate, 900);
+        // 更新改为手动触发：不再启动时自动检查，用户可在「我的 → 在线检查更新」主动发起
       } else {
         $('#login').classList.remove('booting');
         if (s && s.sid) $('#sid').value = s.sid;

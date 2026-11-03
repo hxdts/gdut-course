@@ -81,22 +81,6 @@
 <!-- ==================== 主体 ==================== -->
 <div id="app" class="hidden">
 
-  <div class="topbar">
-    <div class="row">
-      <div>
-        <h2 id="pageTitle">我的课表</h2>
-        <div class="who" id="whoLine">未登录</div>
-      </div>
-      <div class="topbar-actions">
-        <div class="icon-btn" id="btnRefresh" title="刷新">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20.5 12a8.5 8.5 0 1 1-3.2-6.6"/><path d="M17.6 2.6v5.4h-5.4"/>
-          </svg>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div class="content">
 
     <!-- 课表 -->
@@ -126,8 +110,28 @@
       <div id="fitWrap"></div>
     </div>
 
+    <!-- 当日任务（查看当天课程 + 任务增删改，任务同步到课表栏） -->
+    <div class="page" id="page-schedule">
+      <div id="scheduleWrap"></div>
+    </div>
+
     <!-- 我的 -->
     <div class="page" id="page-me">
+
+      <!-- 刷新课表 -->
+      <div class="card">
+        <div class="course-row" id="rowRefresh">
+          <div style="flex:1">
+            <div class="nm">刷新课表</div>
+            <div class="meta" id="refreshTime">上次刷新：—</div>
+          </div>
+          <div class="icon-btn icon-btn-solid" id="btnRefresh" title="刷新课表">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#2f6bff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.5 12a8.5 8.5 0 1 1-3.2-6.6"/><path d="M17.6 2.6v5.4h-5.4"/>
+            </svg>
+          </div>
+        </div>
+      </div>
 
       <!-- 外观 -->
       <div class="card">
@@ -168,6 +172,18 @@
             <div class="oslider-track"></div>
             <div class="oslider-fill" id="opacityFill"></div>
             <div class="oslider-thumb" id="opacityThumb"></div>
+          </div>
+        </div>
+
+        <div class="theme-block">
+          <div class="opt-head">
+            <span class="nm">白色透明度</span>
+            <span class="opt-val" id="surfaceOpacityVal">100%</span>
+          </div>
+          <div class="oslider" id="surfaceOpacitySlider">
+            <div class="oslider-track"></div>
+            <div class="oslider-fill" id="surfaceOpacityFill"></div>
+            <div class="oslider-thumb" id="surfaceOpacityThumb"></div>
           </div>
         </div>
 
@@ -268,6 +284,14 @@
         <path d="M6.5 6.5v11M17.5 6.5v11M4 9.5v5M20 9.5v5M6.5 12h11"/>
       </svg>
       <span>体测</span>
+    </div>
+    <div class="tab" data-page="schedule">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="5" width="18" height="16" rx="3"/>
+        <path d="M3 10h18M8 3v4M16 3v4"/>
+        <path d="M8 14h3M8 17h6"/>
+      </svg>
+      <span>当日任务</span>
     </div>
     <div class="tab" data-page="me">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
