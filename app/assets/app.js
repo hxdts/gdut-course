@@ -1334,7 +1334,7 @@
     });
 
     var todayStr = todayDateStr();
-    var css = 'width:' + (26 + colW * 7 + 3 * 7) + 'px;grid-template-columns:26px repeat(7,' + colW + 'px)';
+    var css = '';   // 列宽交给 CSS（100vw 自适应），这里不再内联
     var html = '<div class="timetable" style="' + css + '">';
     html += '<div class="tt-head" style="grid-row:1;grid-column:1"></div>';
     for (var d = 1; d <= 7; d++) {
@@ -1388,20 +1388,16 @@
         : '第 ' + (state.week || 1) + ' 周教务系统没有返回课程。';
     }
 
-    // 连续时间线：上一周 | 本周 | 下一周 并排，横向滚动可以一路滑过去
-    var vpW = document.documentElement.clientWidth || 360;
-    // 一屏正好 5 天：列宽按可用宽度均分，剩下周六日两天就是可滑动空间
-    var colW = Math.max(50, Math.floor((vpW - 26 - 8) / 5));
+    // 连续时间线：上一周 | 本周 | 下一周。宽度和列宽全部由 CSS（100vw）自适应，
+    // JS 不再算像素，避免屏幕宽度变化时布局错位
     var curW = state.week || 1;
     var prevC = coursesOfWeek(curW - 1);
     var nextC = coursesOfWeek(curW + 1);
-    var pageW = 26 + colW * 7 + 3 * 8;
-    state.pageW = pageW;
     var html = '<div class="tt-scroll" id="ttScroll">' +
-      '<div class="tt-strip" id="ttStrip" style="width:' + (pageW * 3) + 'px">' +
-      '<div class="tt-week" style="width:' + pageW + 'px">' + buildPane(prevC, colW) + '</div>' +
-      '<div class="tt-week" style="width:' + pageW + 'px">' + buildPane(cs, colW) + '</div>' +
-      '<div class="tt-week" style="width:' + pageW + 'px">' + buildPane(nextC, colW) + '</div>' +
+      '<div class="tt-strip" id="ttStrip">' +
+      '<div class="tt-week">' + buildPane(prevC) + '</div>' +
+      '<div class="tt-week">' + buildPane(cs) + '</div>' +
+      '<div class="tt-week">' + buildPane(nextC) + '</div>' +
       '</div></div>';
     // ★ 增量更新：条带还在就只替换必要的那一页，不重建外层 DOM
     var existStrip = $('#ttStrip');
@@ -1410,22 +1406,21 @@
       if (rot > 0) {
         // 切到下一周：把第一页挪到末尾，只重建新的「下一周」这一页
         existStrip.appendChild(existStrip.children[0]);
-        existStrip.children[2].innerHTML = buildPane(nextC, colW);
+        existStrip.children[2].innerHTML = buildPane(nextC);
       } else if (rot < 0) {
         // 切到上一周：把最后一页挪到最前，只重建新的「上一周」这一页
         existStrip.insertBefore(existStrip.children[2], existStrip.children[0]);
-        existStrip.children[0].innerHTML = buildPane(prevC, colW);
+        existStrip.children[0].innerHTML = buildPane(prevC);
       } else {
-        existStrip.children[0].innerHTML = buildPane(prevC, colW);
-        existStrip.children[1].innerHTML = buildPane(cs, colW);
-        existStrip.children[2].innerHTML = buildPane(nextC, colW);
+        existStrip.children[0].innerHTML = buildPane(prevC);
+        existStrip.children[1].innerHTML = buildPane(cs);
+        existStrip.children[2].innerHTML = buildPane(nextC);
       }
-      existStrip.style.width = (pageW * 3) + 'px';
-      for (var wi = 0; wi < 3; wi++) existStrip.children[wi].style.width = pageW + 'px';
+      // 宽度交给 CSS
       renderCourseList(cs);
       $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
       state.lastDir = 0;
-      if (typeof ttSetPos === 'function') ttSetPos(pageW, false);
+      if (typeof ttSetPos === 'function') ttSetPos(ttPageW(), false);
       return;
     }
 
@@ -2584,13 +2579,22 @@
   /* ================= 课表：三周条带，手势平移 + CSS transition 回弹 ================= */
   var ttSwipe = { pos: 0, startX: 0, startPos: 0, dragging: false, pageW: 1, vpW: 1 };
 
+  /** 一页的真实宽度：直接量 DOM，不再靠 JS 推算（屏幕变化后永远正确） */
+  function ttPageW() {
+    var strip = $('#ttStrip');
+    if (strip && strip.children.length) {
+      var w = strip.children[0].getBoundingClientRect().width;
+      if (w > 10) { state.pageW = w; return w; }
+    }
+    return state.pageW || document.documentElement.clientWidth || 360;
+  }
   function ttSetPos(x, animate, dur) {
     var strip = $('#ttStrip');
     var sc = $('#ttScroll');
     if (!strip || !sc) return;
     // 关键：屏宽和页宽都实时读，屏幕旋转/分屏后不会用过期值把滑动截断
     var vp = sc.clientWidth || document.documentElement.clientWidth || 360;
-    var pw = state.pageW || 1;
+    var pw = ttPageW();
     ttSwipe.vpW = vp;
     ttSwipe.pageW = pw;
     var max = Math.max(0, pw * 3 - vp);
@@ -2607,7 +2611,7 @@
 
     var vp = sc.clientWidth || document.documentElement.clientWidth || 360;
     ttSwipe.vpW = vp;
-    ttSwipe.pageW = state.pageW || 1;
+    ttSwipe.pageW = ttPageW();
 
     if (!sc.__inited) {
       sc.__inited = true;
@@ -2675,7 +2679,7 @@
 
       var scNow = $('#ttScroll');
       if (scNow) { ttSwipe.vpW = scNow.clientWidth || ttSwipe.vpW; }
-      ttSwipe.pageW = state.pageW || ttSwipe.pageW;
+      ttSwipe.pageW = ttPageW();
 
       var pw = ttSwipe.pageW;
       var vp = ttSwipe.vpW;
@@ -3029,9 +3033,32 @@
     $('#meSid').textContent = state.sid;
   }
 
+  // 屏幕旋转 / 分屏改变宽度时重新渲染，避免布局与位移对不上
+  (function () {
+    var lastW = document.documentElement.clientWidth;
+    var timer = null;
+    window.addEventListener('resize', function () {
+      var w = document.documentElement.clientWidth;
+      if (Math.abs(w - lastW) < 40) return;
+      lastW = w;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(function () {
+        try {
+          state.pageW = 0;
+          renderTimetable();
+        } catch (e) {}
+      }, 220);
+    });
+  })();
+
   bindLoginCheckboxes();
   boot();
 })();
+
+
+
+
+
 
 
 
