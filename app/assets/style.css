@@ -10,6 +10,7 @@
   --warn: #f79009;
   --danger: #f04438;
   --radius: 18px;
+  --surface-op: 1;   /* 白色表面透明度（卡片/底部导航/浅色按键），1=不透明 0=全透明 */
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -157,7 +158,7 @@ input {
 .icon-btn.spinning svg { animation: rotate .85s linear infinite; }
 @keyframes rotate { to { transform: rotate(360deg); } }
 
-.content { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 14px calc(104px + env(safe-area-inset-bottom, 0px)); }
+.content { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: calc(env(safe-area-inset-top, 0px) + 14px) 14px calc(104px + env(safe-area-inset-bottom, 0px)); }
 
 .page { display: none; }
 .page.active { display: block; animation: fade .22s ease; }
@@ -165,7 +166,7 @@ input {
 
 /* 卡片 */
 .card {
-  background: var(--card); border-radius: var(--radius);
+  background: rgba(255,255,255, var(--surface-op, 1)); border-radius: var(--radius);
   padding: 16px; box-shadow: 0 4px 16px rgba(24, 39, 75, .05);
   margin-bottom: 12px;
 }
@@ -259,7 +260,7 @@ input {
 
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
 .stat {
-  background: var(--card); border-radius: 15px; padding: 13px 14px;
+  background: rgba(255,255,255, var(--surface-op, 1)); border-radius: 15px; padding: 13px 14px;
   box-shadow: 0 4px 16px rgba(24,39,75,.05);
 }
 .stat .k { font-size: calc(11.5px * var(--fs, 1)); color: var(--sub); }
@@ -307,7 +308,7 @@ input {
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
   display: flex;
-  background: rgba(255,255,255,.97);
+  background: rgba(255,255,255, var(--surface-op, 1));
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   border-radius: 22px 22px 0 0;
@@ -365,9 +366,9 @@ input {
   background-size: contain; background-position: center; background-repeat: no-repeat;
 }
 body.has-wallpaper { background: transparent; }
-body.has-wallpaper .card { background: rgba(255,255,255,.96); }
-body.has-wallpaper .stat { background: rgba(255,255,255,.96); }
-body.has-wallpaper .tabbar { background: rgba(255,255,255,.95); }
+body.has-wallpaper .card { background: rgba(255,255,255, var(--surface-op, 1)); }
+body.has-wallpaper .stat { background: rgba(255,255,255, var(--surface-op, 1)); }
+body.has-wallpaper .tabbar { background: rgba(255,255,255, var(--surface-op, 1)); }
 
 /* 主题色选择 */
 @keyframes sheetUpX { to { opacity: 1; } }
@@ -698,20 +699,8 @@ body.dark-theme .cs-row { border-bottom-color: rgba(255,255,255,.08); }
 
 
 
-/* 色块右侧渐隐，提示可左右滑动 */
+/* 色块右侧渐隐已移除：不再显示白色渐变，色块完整可见 */
 .color-line { position: relative; }
-.color-line::after {
-  content: "";
-  position: absolute;
-  right: 0; top: -2px; bottom: 6px;
-  width: 30px;
-  background: linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,.96) 70%);
-  pointer-events: none;
-  border-radius: 0 6px 6px 0;
-}
-body.dark-theme .color-line::after {
-  background: linear-gradient(to right, rgba(26,31,45,0), rgba(26,31,45,.96) 70%);
-}
 .color-hint {
   font-size: calc(11px * var(--fs, 1)); color: #a8b0bf;
   display: flex; align-items: center; gap: 4px;
@@ -1151,3 +1140,148 @@ body.dark-theme .tt-dots i { background: rgba(255,255,255,.25); }
   font-size: calc(13px * var(--fs, 1));
   line-height: 1.7;
 }
+/* ================= 当日任务（当天课程 + 任务增删改，同步到课表） ================= */
+/* 今日任务时间线 */
+.tl { display: flex; flex-direction: column; }
+.tl-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 11px 0; border-bottom: 1px solid var(--line);
+}
+.tl-item:last-child { border-bottom: none; }
+.tl-dot {
+  flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0,0,0,.18);
+}
+.tl-body { flex: 1; min-width: 0; }
+.tl-name {
+  font-size: calc(14.5px * var(--fs, 1)); font-weight: 600;
+  color: var(--text); word-break: break-all; line-height: 1.35;
+}
+.tl-item.done .tl-name { color: var(--sub); text-decoration: line-through; }
+.tl-meta { font-size: calc(11.5px * var(--fs, 1)); color: var(--sub); margin-top: 2px; }
+.tl-chk {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 8px;
+  border: 2px solid #c9d0de; display: flex; align-items: center; justify-content: center;
+  transition: background .15s, border-color .15s;
+}
+.tl-chk svg { width: 14px; height: 14px; }
+.tl-item.done .tl-chk { background: var(--blue); border-color: var(--blue); }
+
+/* 时间线右侧时间（课程） */
+.tl-time {
+  flex: 0 0 auto; font-size: calc(11.5px * var(--fs, 1)); color: var(--blue);
+  font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+
+/* 时间线任务右侧操作区（编辑 + 删除 + 勾选） */
+.tl-ops { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; }
+.tl-edit, .tl-del {
+  width: 30px; height: 30px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  color: #b3bac9; transition: color .15s, background .15s;
+}
+.tl-edit svg, .tl-del svg { width: 16px; height: 16px; }
+.tl-edit:active { color: var(--blue); background: #eef3ff; }
+.tl-del:active { color: var(--danger); background: #fff1f0; }
+.tl-ops .tl-chk { width: 22px; height: 22px; }
+
+/* 课表页任务区块的编辑按钮 */
+.sg-edit {
+  flex: 0 0 auto; width: 32px; height: 32px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: #b3bac9; transition: color .15s, background .15s;
+}
+.sg-edit:active { color: var(--blue); background: #eef3ff; }
+.sg-edit svg { width: 17px; height: 17px; }
+
+/* 任务编辑弹窗：时间段输入行 */
+.tk-time-row { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+.tk-time-row .ui-input { margin-bottom: 0; }
+.tk-time { flex: 1; text-align: center; }
+.tk-sep { flex: 0 0 auto; color: var(--sub); font-size: calc(13px * var(--fs, 1)); }
+
+/* 任务列表分组 */
+.sg-group {
+  font-size: calc(12px * var(--fs, 1)); font-weight: 600; color: var(--sub);
+  margin: 12px 0 2px;
+}
+.sg-group:first-child { margin-top: 0; }
+.sg-chk {
+  flex: 0 0 auto; width: 22px; height: 22px; border-radius: 7px;
+  border: 2px solid #c9d0de; display: flex; align-items: center; justify-content: center;
+  transition: background .15s, border-color .15s;
+}
+.sg-chk svg { width: 12px; height: 12px; }
+.sg-chk.on { background: var(--blue); border-color: var(--blue); }
+.sg-done { color: var(--sub); text-decoration: line-through; }
+.sg-del {
+  flex: 0 0 auto; width: 32px; height: 32px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: #b3bac9; transition: color .15s, background .15s;
+}
+.sg-del:active { color: var(--danger); background: #fff1f0; }
+.sg-del svg { width: 18px; height: 18px; }
+
+/* 课表页任务区块标题里的「＋新建」 */
+.tt-task-add {
+  float: right; font-size: calc(12px * var(--fs, 1)); font-weight: 600;
+  color: var(--blue); padding: 2px 8px; border-radius: 8px;
+}
+.tt-task-add:active { background: #eef3ff; }
+
+/* 新建任务按钮 */
+.sg-add {
+  width: 100%; height: 48px; border-radius: 15px;
+  background: rgba(255,255,255, var(--surface-op, 1));
+  color: var(--blue); font-size: calc(15px * var(--fs, 1)); font-weight: 600;
+  box-shadow: 0 8px 20px rgba(47,107,255,.18);
+  transition: transform .12s;
+}
+.sg-add:active { transform: scale(.975); }
+
+/* 深色壁纸适配 */
+body.dark-theme .tl-item { border-bottom-color: rgba(255,255,255,.08); }
+body.dark-theme .tl-chk,
+body.dark-theme .sg-chk { border-color: rgba(255,255,255,.22); }
+body.dark-theme .sg-del:active { background: rgba(240,68,56,.16); }
+
+/* ================= 白色透明度：卡片 / 底部导航 / 浅色按键跟随 --surface-op ================= */
+/* 浅色填充按键（浅蓝/浅灰底）统一改为白色透明，跟随「白色透明度」滑块 */
+.btn-ghost,
+.wk-btn,
+.fs-btn,
+.ttfs-btn,
+.cs-close,
+.upd-btn.later,
+.ui-cancel,
+.ccp-btn {
+  background: rgba(255,255,255, var(--surface-op, 1)) !important;
+}
+/* 输入框/字段浅色底 */
+.field,
+.ui-input,
+.wp-date-input {
+  background: rgba(255,255,255, var(--surface-op, 1)) !important;
+}
+/* 浅色面板元素 */
+.pal-item,
+.fit-item,
+.wall-tool,
+.ttfs-row .ttfs-btn,
+.diag-row,
+.wp-item {
+  background: rgba(255,255,255, var(--surface-op, 1));
+}
+
+/* ================= 「我的」栏目刷新课表按钮 ================= */
+.icon-btn-solid {
+  width: 38px; height: 38px; border-radius: 12px;
+  background: #eef3ff;
+  display: flex; align-items: center; justify-content: center;
+  flex: 0 0 auto;
+}
+.icon-btn-solid svg { width: 19px; height: 19px; }
+.icon-btn-solid:active { background: #dfe8ff; transform: scale(.94); }
+.icon-btn-solid.spinning svg { animation: rotate .85s linear infinite; }
+@keyframes rotate { to { transform: rotate(360deg); } }
+body.dark-theme .icon-btn-solid { background: rgba(255,255,255,.10); }
