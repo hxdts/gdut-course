@@ -1179,8 +1179,8 @@
     return two(t.getMonth() + 1) + '-' + two(t.getDate());
   }
 
-  function dayDate(d) {
-    var arr = state.days || [];
+  function dayDate(d, days) {
+    var arr = days || state.days || [];
     for (var i = 0; i < arr.length; i++) {
       if (arr[i].day === d) {
         var s = arr[i].date || '';
@@ -1356,7 +1356,7 @@
     }
     card.innerHTML = html2;
   }
-  function buildPane(courses, colW) {
+  function buildPane(courses, days) {
     var days = ['一', '二', '三', '四', '五', '六', '日'];
     var cs = courses || [];
 
@@ -1383,7 +1383,7 @@
     var html = '<div class="timetable" style="' + css + '">';
     html += '<div class="tt-head" style="grid-row:1;grid-column:1"></div>';
     for (var d = 1; d <= 7; d++) {
-      var dd = dayDate(d);
+      var dd = dayDate(d, days);
       var isToday = dd && dd === todayStr;
       html += '<div class="tt-head" style="grid-row:1;grid-column:' + (d + 1) + '">' + days[d - 1] +
         (dd ? '<span class="tt-date' + (isToday ? ' today' : '') + '">' + dd + '</span>' : '') +
@@ -1413,13 +1413,31 @@
   }
 
   /** 取某周的课程（优先本地缓存），没有则返回空数组 */
+  /** 取某周的数据：返回该周自己的课程和日期（日期必须跟着周走，否则相邻周会显示本周日期） */
   function coursesOfWeek(w) {
-    if (w < 1 || w > (state.totalWeeks || 22)) return [];
+    if (w < 1 || w > (state.totalWeeks || 22)) return { courses: [], days: [] };
     try {
       var c = loadTtCache(state.term, w);
-      if (c && c.courses) return c.courses;
+      if (c) return { courses: c.courses || [], days: c.days || [] };
     } catch (e) {}
-    return [];
+    return { courses: [], days: [] };
+  }
+  /** 某一周 7 天的日期：优先用缓存里的；没缓存就按学期起始日推算，避免相邻周日期空白或错位 */
+  function daysOfWeek(w) {
+    var c = coursesOfWeek(w);
+    if (c.days && c.days.length) return c.days;
+    var s = parseYmd(state.termStart || state.startDate);
+    if (!s || !w) return [];
+    var out = [];
+    for (var d = 1; d <= 7; d++) {
+      var dt = new Date(s.getTime());
+      dt.setDate(dt.getDate() + (w - 1) * 7 + (d - 1));
+      out.push({
+        day: d,
+        date: dt.getFullYear() + '-' + two(dt.getMonth() + 1) + '-' + two(dt.getDate())
+      });
+    }
+    return out;
   }
   function renderTimetable() {
     var wrap = $('#ttWrap');
@@ -1440,9 +1458,9 @@
     var nextC = coursesOfWeek(curW + 1);
     var html = '<div class="tt-scroll" id="ttScroll">' +
       '<div class="tt-strip" id="ttStrip">' +
-      '<div class="tt-week">' + buildPane(prevC) + '</div>' +
-      '<div class="tt-week">' + buildPane(cs) + '</div>' +
-      '<div class="tt-week">' + buildPane(nextC) + '</div>' +
+      '<div class="tt-week">' + buildPane(prevC.courses, daysOfWeek(curW - 1)) + '</div>' +
+      '<div class="tt-week">' + buildPane(cs, (state.days && state.days.length) ? state.days : daysOfWeek(curW)) + '</div>' +
+      '<div class="tt-week">' + buildPane(nextC.courses, daysOfWeek(curW + 1)) + '</div>' +
       '</div></div>';
     // ★ 增量更新：条带还在就只替换必要的那一页，不重建外层 DOM
     var existStrip = $('#ttStrip');
@@ -1451,15 +1469,15 @@
       if (rot > 0) {
         // 切到下一周：把第一页挪到末尾，只重建新的「下一周」这一页
         existStrip.appendChild(existStrip.children[0]);
-        existStrip.children[2].innerHTML = buildPane(nextC);
+        existStrip.children[2].innerHTML = buildPane(nextC.courses, daysOfWeek(curW + 1));
       } else if (rot < 0) {
         // 切到上一周：把最后一页挪到最前，只重建新的「上一周」这一页
         existStrip.insertBefore(existStrip.children[2], existStrip.children[0]);
-        existStrip.children[0].innerHTML = buildPane(prevC);
+        existStrip.children[0].innerHTML = buildPane(prevC.courses, daysOfWeek(curW - 1));
       } else {
-        existStrip.children[0].innerHTML = buildPane(prevC);
-        existStrip.children[1].innerHTML = buildPane(cs);
-        existStrip.children[2].innerHTML = buildPane(nextC);
+        existStrip.children[0].innerHTML = buildPane(prevC.courses, daysOfWeek(curW - 1));
+        existStrip.children[1].innerHTML = buildPane(cs, (state.days && state.days.length) ? state.days : daysOfWeek(curW));
+        existStrip.children[2].innerHTML = buildPane(nextC.courses, daysOfWeek(curW + 1));
       }
       // 宽度交给 CSS
       renderCourseList(cs);
@@ -3260,6 +3278,8 @@
   bindLoginCheckboxes();
   boot();
 })();
+
+
 
 
 
