@@ -3254,21 +3254,9 @@
   var __booted = false;
   function boot() {
     if (__booted) return;
-    // 原生桥可能还没注入完，先等它出现（最多 1.2 秒），
-    // 否则会被误判成「浏览器预览模式」而显示空界面
-    var waited = 0;
-    (function waitBridge() {
-      if (hasNative() || waited >= 1200) {
-        __booted = true;
-        realBoot();
-        return;
-      }
-      waited += 100;
-      setTimeout(waitBridge, 100);
-    })();
-  }
-
-  function realBoot() {
+    __booted = true;
+    // 原生侧已经改成「先注入 window.Native 再 loadUrl」，这里不需要再等；
+    // 万一原生桥确实没就绪，call() 也会抛 NATIVE_UNAVAILABLE 走失败分支，不会卡死
     var innerDone = false;
     function go() {
       if (innerDone) return;
@@ -3277,10 +3265,47 @@
         bootInner();
       } catch (e) {
         window.__lastErr = 'bootInner: ' + (e && e.message);
+        var lg3 = document.getElementById('login');
+        if (lg3) lg3.classList.remove('booting');
+      }
+    }
+    // 原生设置备份是可选步骤：2.5 秒没回来就直接启动
+    setTimeout(go, 2500);
+    restorePrefs(go);
+    // 兜底：3 秒后仍未决定显示哪个界面，就把登录页亮出来
+    setTimeout(function () {
+      var lg = document.getElementById('login');
+      var ap = document.getElementById('app');
+      if (!lg) return;
+      var appShown = ap && ap.className.indexOf('hidden') < 0;
+      if (!appShown && lg.className.indexOf('hidden') < 0) lg.classList.remove('booting');
+    }, 3000);
+  }
+
+  function realBoot() {
+    window.__trace += 'realBoot;';
+    var innerDone = false;
+    function go() {
+      window.__trace += 'go;';
+      if (innerDone) return;
+      innerDone = true;
+      try {
+        window.__trace += 'bootInner;';
+        bootInner();
+      } catch (e) {
+        window.__lastErr = 'bootInner: ' + (e && e.message);
       }
     }
     setTimeout(go, 2500);
     restorePrefs(go);
+    // 兜底：3 秒后仍未决定显示哪个界面，就把登录页亮出来（绝不会停在空白）
+    setTimeout(function () {
+      var lg = document.getElementById('login');
+      var ap = document.getElementById('app');
+      if (!lg) return;
+      var appShown = ap && ap.className.indexOf('hidden') < 0;
+      if (!appShown && lg.className.indexOf('hidden') < 0) lg.classList.remove('booting');
+    }, 3000);
   }
 
   function bootInner() {
@@ -3323,7 +3348,7 @@
         setTimeout(autoCheckUpdate, 900);
       } else {
         
-        $('#login').classList.remove('hidden');
+        $('#login').classList.remove('booting');
         if (s && s.sid) $('#sid').value = s.sid;
         setTimeout(function () {
           try {
@@ -3338,7 +3363,7 @@
       }
     }).catch(function () {
       
-      $('#login').classList.remove('hidden');
+      $('#login').classList.remove('booting');
       setTimeout(function () { autoLogin(); }, 300);
     });
   }
@@ -3478,8 +3503,9 @@
       toast(gdbg.on ? '手势诊断已开启' : '手势诊断已关闭');
     }
   }, true);
-  bindLoginCheckboxes();
+  // 先启动，再绑定登录页的勾选交互——后者即使出问题也不影响进入界面
   boot();
+  try { bindLoginCheckboxes(); } catch (e) { window.__lastErr = 'bindLoginCheckboxes: ' + e.message; }
 })();
 
 
