@@ -1,0 +1,86 @@
+name: 问题反馈
+description: 遇到 bug、显示异常、数据不对
+title: "[问题] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提之前先看一眼：**你的问题在最新版还在吗？**
+        设置 → 我的 → 在线检查更新，确认版本号是不是最新。
+
+  - type: input
+    id: version
+    attributes:
+      label: App 版本号
+      description: 在「我的」页面能看到，例如 13.7
+      placeholder: 13.7
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: 手机型号与系统
+      description: 例如 iQOO 15 / Android 15
+      placeholder: iQOO 15 / Android 15
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: 具体现象
+      description: 你看到了什么？尽量具体（哪一页、哪个按钮、什么文字）
+      placeholder: 例如：课表左右滑动，划两下只换了一周
+    validations:
+      required: true
+
+  - type: textarea
+    id: expect
+    attributes:
+      label: 你期望的结果
+      placeholder: 例如：甩几下就应该换几周
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 从打开 App 开始，一步步写怎么触发的
+      placeholder: |
+        1. 打开 App
+        2. 在课表页向左快速滑动
+        3. …
+    validations:
+      required: true
+
+  - type: dropdown
+    id: freq
+    attributes:
+      label: 出现频率
+      options:
+        - 每次都有
+        - 经常
+        - 偶发，说不准
+    validations:
+      required: true
+
+  - type: textarea
+    id: shot
+    attributes:
+      label: 截图或录屏
+      description: 直接拖进这个框里。显示错位、描边、颜色这类问题，截图比文字清楚得多
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 确认
+      options:
+        - label: 我已经在最新版上试过，问题依旧存在
+          required: true
+        - label: 我搜过现有 issue，没有重复
+          required: true
