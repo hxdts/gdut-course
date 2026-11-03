@@ -1390,11 +1390,12 @@
 
     // 连续时间线：上一周 | 本周 | 下一周 并排，横向滚动可以一路滑过去
     var vpW = document.documentElement.clientWidth || 360;
-    var colW = Math.max(46, Math.floor((vpW - 108) / 5));
+    // 一屏正好 5 天：列宽按可用宽度均分，剩下周六日两天就是可滑动空间
+    var colW = Math.max(50, Math.floor((vpW - 26 - 8) / 5));
     var curW = state.week || 1;
     var prevC = coursesOfWeek(curW - 1);
     var nextC = coursesOfWeek(curW + 1);
-    var pageW = 26 + colW * 7 + 3 * 8 + 8;
+    var pageW = 26 + colW * 7 + 3 * 8;
     state.pageW = pageW;
     var html = '<div class="tt-scroll" id="ttScroll">' +
       '<div class="tt-strip" id="ttStrip" style="width:' + (pageW * 3) + 'px">' +
@@ -2710,7 +2711,13 @@
         }
         return;
       }
-      // 位置本来就在本周页内：什么都不做（保持你在看的那几天）
+      // 本周页内松手：吸附到最近的端点（左端=周一到周五，右端=周三到周日），不停半路
+      var mid = (leftEdge + rightEdge) / 2;
+      if (p <= mid) {
+        if (Math.abs(p - leftEdge) > 2) ttSetPos(leftEdge, true, 260);
+      } else {
+        if (Math.abs(p - rightEdge) > 2) ttSetPos(rightEdge, true, 260);
+      }
     }
 
     /** 滑到目标位置，动画真正结束的那一刻再换数据（比 setTimeout 精确，不会卡顿） */
