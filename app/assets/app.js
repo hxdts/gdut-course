@@ -1131,13 +1131,95 @@
     $('#csClose').addEventListener('click', closeCourse);
   }
 
+  /* ================= 每门课自定义颜色 ================= */
+  function getCourseColors() {
+    try {
+      var sc = localStorage.getItem('courseColors');
+      return sc ? JSON.parse(sc) : {};
+    } catch (e) { return {}; }
+  }
+
+  function saveCourseColors(m) {
+    try { localStorage.setItem('courseColors', JSON.stringify(m)); } catch (e) {}
+  }
+
+  function setCourseColor(name, hex) {
+    var m = getCourseColors();
+    if (hex) m[name] = hex;
+    else delete m[name];
+    saveCourseColors(m);
+  }
+
+  function resetAllCourseColors() {
+    try { localStorage.removeItem('courseColors'); } catch (e) {}
+    renderTimetable();
+    toast('所有课程颜色已恢复默认');
+  }
+
+  /** 课程颜色：优先用自定义，否则按课程名散列到内置调色板 */
   function colorOf(name) {
+    var m = getCourseColors();
+    if (m[name]) return m[name];
     var pal = currentPalette();
     var h = 0;
     for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
     return pal.colors[h % pal.colors.length];
   }
 
+  /** 打开某门课的颜色选择器 */
+  function showCourseColorPicker(name) {
+    var cur = getCourseColors()[name] || '';
+    var html = '<div class="ccp-mask" id="ccpMask"></div>' +
+      '<div class="ccp-sheet">' +
+      '<div class="ccp-title">' + esc(name) + '</div>' +
+      '<div class="ccp-grid">' +
+      '<div class="ccp-item' + (cur ? '' : ' on') + '" data-c=""><span class="ccp-none">默认</span></div>';
+    CC_COLORS.forEach(function (c) {
+      html += '<div class="ccp-item' + (cur === c ? ' on' : '') + '" data-c="' + c + '">' +
+        '<span class="ccp-sw" style="background:' + c + '"></span></div>';
+    });
+    html += '</div>' +
+      '<div class="ccp-foot">' +
+      '<div class="ccp-btn" id="ccpAllReset">全部恢复默认</div>' +
+      '<div class="ccp-btn primary" id="ccpClose">关闭</div>' +
+      '</div></div>';
+    var el = document.createElement('div');
+    el.id = 'courseColorPicker';
+    el.className = 'ccp';
+    el.innerHTML = html;
+    document.body.appendChild(el);
+
+    el.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t) return;
+      if (t.id === 'ccpMask' || t.id === 'ccpClose') { closeCcp(); return; }
+      if (t.id === 'ccpAllReset') {
+        resetAllCourseColors();
+        closeCcp();
+        return;
+      }
+      var item = t.closest ? t.closest('.ccp-item') : null;
+      if (item) {
+        var c = item.getAttribute('data-c');
+        setCourseColor(name, c);
+        renderTimetable();
+        closeCcp();
+        toast(c ? '已设置颜色' : '已恢复默认颜色');
+      }
+    });
+  }
+
+  function closeCcp() {
+    var el = document.getElementById('courseColorPicker');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
+  var CC_COLORS = [
+    '#3b82f6', '#60a5fa', '#06b6d4', '#14b8a6', '#22c55e', '#84cc16',
+    '#eab308', '#f59e0b', '#f97316', '#ef4444', '#dc2626', '#ec4899',
+    '#d946ef', '#a855f7', '#7c3aed', '#6366f1', '#0ea5e9', '#64748b',
+    '#0f172a', '#334155'
+  ];
   function renderTimetable() {
     var wrap = $('#ttWrap');
     var cs = state.courses;
@@ -1217,15 +1299,32 @@
       var arr = byName[n];
       var c = arr[0];
       var times = arr.map(function (x) { return '周' + days[x.day - 1] + ' 第' + x.start + '-' + x.end + '节'; }).join('，');
+      var isCustom = !!getCourseColors()[n];
       html += '<div class="course-row"><div style="flex:1">' +
         '<div class="nm">' + esc(n) + '</div>' +
         '<div class="meta">' + esc(times) + (c.teacher ? ' · ' + esc(c.teacher) : '') + (c.room ? ' · ' + esc(c.room) : '') + '</div>' +
-        '</div></div>';
+        '</div>' +
+        '<span class="cc-dot' + (isCustom ? ' custom' : '') + '" data-name="' + esc(n) + '"' +
+        ' style="background:' + colorOf(n) + '"></span>' +
+        '</div>';
     });
     html += '</div>';
 
     wrap.innerHTML = html;
     $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
+
+    // 点课程行右侧的色点 → 打开该课颜色选择器
+    if (!wrap.__ccBound) {
+      wrap.__ccBound = true;
+      wrap.addEventListener('click', function (e) {
+        var t = e.target;
+        if (!t || !t.closest) return;
+        var dot = t.closest('.cc-dot');
+        if (!dot) return;
+        var nm = dot.getAttribute('data-name');
+        if (nm) showCourseColorPicker(nm);
+      });
+    }
   }
 
   function shortName(n) {
@@ -1634,17 +1733,9 @@
       var val = row.querySelector('.ttfs-val');
       if (val) val.textContent = pct + '%';
 
-      // 像素级定位：两端留出圆点半径，收缩到 0 或拉满时都不会溢出轨道
-      var trackW = slider ? slider.clientWidth : 0;
-      var R = 11;
-      if (trackW > R * 2) {
-        var pos = R + w * (trackW - R * 2);
-        if (thumb) thumb.style.left = pos + 'px';
-        if (fill) fill.style.width = pos + 'px';
-      } else {
-        if (thumb) thumb.style.left = (w * 100) + '%';
-        if (fill) fill.style.width = (w * 100) + '%';
-      }
+      // 位置完全交给 CSS 计算：--p 是 0~1 的进度，CSS 里按
+      // left = 11px + (100% - 22px) * --p 定位，两端都不会溢出
+      row.style.setProperty('--p', String(w));
     });
   }
 
@@ -2047,7 +2138,6 @@
 
   function setPalette(id) {
     try { localStorage.setItem('palette', id); } catch (e) {}
-    renderPaletteRow();
     renderTimetable();
     toast('课程配色：' + currentPalette().name);
   }
@@ -2070,14 +2160,18 @@
 
   /* ================= 壁纸屏幕适应 ================= */
   function getWallFit() {
-    try { return localStorage.getItem('wallFit') || 'cover'; } catch (e) { return 'cover'; }
+    try { return localStorage.getItem('wallFit') || 'width'; } catch (e) { return 'width'; }
   }
 
+  function wallFitSize(fit) {
+    if (fit === 'height') return 'auto 100%';   // 上下完整：高度撑满
+    return '100% auto';                          // 左右完整：宽度撑满
+  }
   function applyWallFit(fit) {
     try { localStorage.setItem('wallFit', fit); } catch (e) {}
     var img = $('#wpImg');
     if (img) {
-      img.style.backgroundSize = fit === 'contain' ? 'contain' : 'cover';
+      img.style.backgroundSize = wallFitSize(fit);
       img.style.backgroundRepeat = 'no-repeat';
       img.style.backgroundPosition = 'center';
     }
@@ -2093,7 +2187,7 @@
       });
     }
     var lab = $('#wallFitVal');
-    if (lab) lab.textContent = fit === 'contain' ? '上下完整' : '左右铺满';
+    if (lab) lab.textContent = fit === 'height' ? '上下完整' : '左右完整';
     var block = $('#wallFitBlock');
     if (block) {
       var has = false;
@@ -2129,7 +2223,7 @@
     if (img) {
       img.style.backgroundImage = u;
       var fit = getWallFit();
-      img.style.backgroundSize = fit === 'contain' ? 'contain' : 'cover';
+      img.style.backgroundSize = wallFitSize(fit);
       img.style.backgroundRepeat = 'no-repeat';
       img.style.backgroundPosition = 'center';
     }
@@ -2189,7 +2283,6 @@
       if (th) applyTheme(th);
     } catch (e) {}
     renderThemeDots();
-    renderPaletteRow();
 
     var dots = $('#themeDots');
     if (dots) {
@@ -2620,6 +2713,12 @@
 
   boot();
 })();
+
+
+
+
+
+
 
 
 
