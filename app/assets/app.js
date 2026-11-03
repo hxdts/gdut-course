@@ -390,8 +390,9 @@
   function enterApp() {
     $('#login').classList.add('hidden');
     window.__bootOk = true;
-    $('#meSid').textContent = state.sid || '—';
-    if ($('#whoLine')) $('#whoLine').textContent = (state.sid ? '学号 ' + state.sid + ' · ' : '') + '已连接教务系统';
+    // 关键：把主界面显示出来（这行之前被误删，导致登录页藏起来、主界面也没出现 = 纯白屏）
+    $('#app').classList.remove('hidden');
+    if ($('#meSid')) $('#meSid').textContent = state.sid || '—';
     switchPage('tt');
     // 每次打开都定位到"今天所在的周"。
     // 关键：先用本地缓存的学期起始日期自己算，断网也能定位到本周，
