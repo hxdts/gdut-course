@@ -1430,6 +1430,106 @@
     if (thumb) thumb.style.left = v + '%';
   }
 
+  /* ================= 课表文字字号（五类独立） ================= */
+  var TT_FS_KEYS = [
+    { k: 'week', name: '周次' },
+    { k: 'day', name: '星期' },
+    { k: 'date', name: '日期' },
+    { k: 'sec', name: '节数' },
+    { k: 'course', name: '课程' }
+  ];
+
+  function getTtFs() {
+    var d = {};
+    TT_FS_KEYS.forEach(function (it) { d[it.k] = 100; });
+    try {
+      var s = localStorage.getItem('ttFontScale');
+      if (s) {
+        var o = JSON.parse(s);
+        TT_FS_KEYS.forEach(function (it) {
+          var v = parseInt(o[it.k], 10);
+          if (!isNaN(v)) d[it.k] = Math.min(160, Math.max(70, v));
+        });
+      }
+    } catch (e) {}
+    return d;
+  }
+
+  function saveTtFs(d) {
+    try { localStorage.setItem('ttFontScale', JSON.stringify(d)); } catch (e) {}
+  }
+
+  function applyTtFs() {
+    var v = getTtFs();
+    TT_FS_KEYS.forEach(function (it) {
+      document.documentElement.style.setProperty('--fs-' + it.k, (v[it.k] / 100).toFixed(2));
+    });
+    renderTtFsList(v);
+  }
+
+  function renderTtFsList(v) {
+    var box = $('#ttFsList');
+    if (!box) return;
+    // 只创建一次骨架，之后只更新数值，避免重建 DOM 导致连续点击失效
+    if (!box.children.length) {
+      var html = '';
+      TT_FS_KEYS.forEach(function (it) {
+        html += '<div class="ttfs-row" data-k="' + it.k + '">' +
+          '<span class="ttfs-name">' + it.name + '</span>' +
+          '<button class="ttfs-btn" data-act="minus">−</button>' +
+          '<div class="ttfs-bar"><div class="ttfs-fill"></div></div>' +
+          '<button class="ttfs-btn" data-act="plus">+</button>' +
+          '<span class="ttfs-val">100%</span>' +
+          '</div>';
+      });
+      box.innerHTML = html;
+    }
+    TT_FS_KEYS.forEach(function (it) {
+      var row = box.querySelector('.ttfs-row[data-k="' + it.k + '"]');
+      if (!row) return;
+      var pct = v[it.k];
+      var val = row.querySelector('.ttfs-val');
+      if (val) val.textContent = pct + '%';
+      var fill = row.querySelector('.ttfs-fill');
+      if (fill) fill.style.width = Math.round((pct - 70) / 90 * 100) + '%';
+    });
+  }
+
+  function setTtFs(key, val) {
+    val = Math.min(160, Math.max(70, val));
+    var v = getTtFs();
+    v[key] = val;
+    saveTtFs(v);
+    applyTtFs();
+  }
+
+  function initTtFontScale() {
+    applyTtFs();
+    var box = $('#ttFsList');
+    if (box) {
+      box.addEventListener('click', function (e) {
+        var el = e.target;
+        if (!el || !el.getAttribute) return;
+        var act = el.getAttribute('data-act');
+        if (!act) return;
+        var row = el.parentNode;
+        var key = row ? row.getAttribute('data-k') : null;
+        if (!key) return;
+        var cur = getTtFs()[key];
+        setTtFs(key, act === 'plus' ? cur + 5 : cur - 5);
+      });
+    }
+    var reset = $('#ttFsReset');
+    if (reset) {
+      reset.addEventListener('click', function () {
+        var d = {};
+        TT_FS_KEYS.forEach(function (it) { d[it.k] = 100; });
+        saveTtFs(d);
+        applyTtFs();
+        toast('课表文字字号已重置');
+      });
+    }
+  }
   /* ================= 字体大小 ================= */
   function getFontScale() {
     var v = 100;
@@ -1886,6 +1986,9 @@
     // 字体大小
     initFontScale();
 
+    // 课表文字字号（五类独立）
+    initTtFontScale();
+
     // 描边强度
     renderStrokeRow();
     var sr = $('#strokeRow');
@@ -2218,6 +2321,9 @@
 
   boot();
 })();
+
+
+
 
 
 
