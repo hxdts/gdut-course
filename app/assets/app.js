@@ -1293,12 +1293,8 @@
       for (var k = c.start; k <= e; k++) grid[c.day + '_' + k] = c;
     });
 
-    // 左右两页：工作日（周一~周五）/ 周末（周六~周日）
-    var html = '<div class="tt-viewport"><div class="tt-pager" id="ttPager">';
-    html += '<div class="tt-pane">' + buildGrid(1, 5, sections, grid, days) + '</div>';
-    html += '<div class="tt-pane">' + buildGrid(6, 7, sections, grid, days) + '</div>';
-    html += '</div></div>';
-    html += '<div class="tt-dots" id="ttDots"><i class="on"></i><i></i></div>';
+    // 7 列一页显示（周一到周日），横向滑动手势用于切换周次
+    var html = '<div class="tt-viewport" id="ttViewport">' + buildGrid(1, 7, sections, grid, days) + '</div>';
     var byName = {};
     cs.forEach(function (c) { (byName[c.name] = byName[c.name] || []).push(c); });
     html += '<div class="card" style="margin-top:12px"><div class="card-title">课程 · ' +
@@ -1321,7 +1317,8 @@
     wrap.innerHTML = html;
     $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
 
-    // 分页容器是动态生成的，每次渲染后重新绑定滑动
+    // 每次渲染后复位位移并重新绑定滑动
+    resetSwipeOffset();
     initTTSwipe();
 
     // 点课程行右侧的色点 → 打开该课颜色选择器
@@ -2462,79 +2459,75 @@
       applyWallFit(fit);
     });
   }
-  /* ================= 课表工作日/周末分页：跟手滑动 ================= */
-  var ttPager = { page: 0, startX: 0, dx: 0, dragging: false, trackW: 0 };
+  /* ================= 课表横向滑动切周（跟手 + 过半判断） ================= */
+  var ttSwipe = { active: false, startX: 0, dx: 0, w: 1 };
 
   function initTTSwipe() {
-    var pager = $('#ttPager');
-    if (!pager || pager.__bound) return;
-    pager.__bound = true;
+    var vp = $('#ttViewport');
+    if (!vp || vp.__swipeBound) return;
+    vp.__swipeBound = true;
 
-    var viewport = pager.parentElement;
-    var dots = function () { return document.querySelectorAll('#ttDots i'); };
+    var pane = vp.firstElementChild || vp;
 
-    function apply(offsetPx, animate) {
-      pager.style.transition = animate ? 'transform .3s cubic-bezier(.22,.68,.36,1)' : 'none';
-      pager.style.transform = 'translateX(calc(' + (-ttPager.page * 50) + '% + ' + offsetPx + 'px))';
-    }
-
-    function setDots() {
-      Array.prototype.forEach.call(dots(), function (el, i) {
-        el.classList.toggle('on', i === ttPager.page);
-      });
-    }
-
-    function goPage(p, animate) {
-      ttPager.page = Math.max(0, Math.min(1, p));
-      apply(0, animate !== false);
-      setDots();
+    function setOffset(px, animate) {
+      pane.style.transition = animate ? 'transform .26s cubic-bezier(.22,.68,.36,1), opacity .26s' : 'none';
+      pane.style.transform = 'translateX(' + px + 'px)';
+      var op = 1 - Math.min(0.45, Math.abs(px) / ttSwipe.w * 0.55);
+      pane.style.opacity = String(op);
     }
 
     function onStart(x) {
-      if (!viewport) return;
-      ttPager.trackW = viewport.clientWidth || 1;
-      ttPager.startX = x;
-      ttPager.dx = 0;
-      ttPager.dragging = true;
-      apply(0, false);
+      ttSwipe.w = vp.clientWidth || 1;
+      ttSwipe.startX = x;
+      ttSwipe.dx = 0;
+      ttSwipe.active = true;
+      setOffset(0, false);
     }
 
     function onMove(x) {
-      if (!ttPager.dragging) return;
-      var dx = x - ttPager.startX;
-      // 第 0 页不能右滑、第 1 页不能左滑，加阻尼
-      if ((ttPager.page === 0 && dx > 0) || (ttPager.page === 1 && dx < 0)) {
-        dx *= 0.32;
-      }
-      ttPager.dx = dx;
-      apply(dx, false);
+      if (!ttSwipe.active) return;
+      var dx = x - ttSwipe.startX;
+      var cur = state.week || 1;
+      var total = state.totalWeeks || 22;
+      // 第一周不能右滑、最后一周不能左滑：加阻尼
+      if ((cur <= 1 && dx > 0) || (cur >= total && dx < 0)) dx *= 0.3;
+      ttSwipe.dx = dx;
+      setOffset(dx, false);
     }
 
     function onEnd() {
-      if (!ttPager.dragging) return;
-      ttPager.dragging = false;
-      var threshold = Math.max(48, ttPager.trackW * 0.24);
-      if (ttPager.dx < -threshold && ttPager.page === 0) goPage(1, true);
-      else if (ttPager.dx > threshold && ttPager.page === 1) goPage(0, true);
-      else goPage(ttPager.page, true);   // 没到一半，回弹
-      ttPager.dx = 0;
+      if (!ttSwipe.active) return;
+      ttSwipe.active = false;
+      var dx = ttSwipe.dx;
+      var half = ttSwipe.w * 0.5;      // 刚好一半
+      if (dx <= -half) {
+        // 左滑过半 → 下一周
+        setOffset(-ttSwipe.w, true);
+        setTimeout(function () { goToWeek((state.week || 1) + 1); }, 120);
+      } else if (dx >= half) {
+        // 右滑过半 → 上一周
+        setOffset(ttSwipe.w, true);
+        setTimeout(function () { goToWeek((state.week || 1) - 1); }, 120);
+      } else {
+        // 没过半 → 回退
+        setOffset(0, true);
+      }
+      ttSwipe.dx = 0;
     }
 
-    // 触摸
-    viewport.addEventListener('touchstart', function (e) {
+    vp.addEventListener('touchstart', function (e) {
       if (e.touches.length !== 1) return;
       onStart(e.touches[0].clientX);
     }, { passive: true });
-    viewport.addEventListener('touchmove', function (e) {
+    vp.addEventListener('touchmove', function (e) {
       if (e.touches.length !== 1) return;
       onMove(e.touches[0].clientX);
     }, { passive: true });
-    viewport.addEventListener('touchend', onEnd, { passive: true });
-    viewport.addEventListener('touchcancel', onEnd, { passive: true });
+    vp.addEventListener('touchend', onEnd, { passive: true });
+    vp.addEventListener('touchcancel', onEnd, { passive: true });
 
-    // 鼠标（预览用）
     var mDown = false;
-    viewport.addEventListener('mousedown', function (e) {
+    vp.addEventListener('mousedown', function (e) {
       if (e.button !== 0) return;
       mDown = true;
       onStart(e.clientX);
@@ -2548,19 +2541,16 @@
       mDown = false;
       onEnd();
     });
+  }
 
-    // 点页码圆点
-    var dotBox = $('#ttDots');
-    if (dotBox) {
-      dotBox.addEventListener('click', function (e) {
-        var t = e.target;
-        if (!t || t.tagName !== 'I') return;
-        var idx = Array.prototype.indexOf.call(dots(), t);
-        if (idx >= 0) goPage(idx, true);
-      });
-    }
-
-    goPage(0, false);
+  /** 切周后把位移复位，避免新内容还带着平移 */
+  function resetSwipeOffset() {
+    var vp = $('#ttViewport');
+    if (!vp) return;
+    var pane = vp.firstElementChild || vp;
+    pane.style.transition = 'none';
+    pane.style.transform = 'translateX(0)';
+    pane.style.opacity = '1';
   }
   $('#rowWallpaper').addEventListener('click', function () {
     call('pickWallpaper').catch(function () {
@@ -2825,6 +2815,9 @@
 
   boot();
 })();
+
+
+
 
 
 
