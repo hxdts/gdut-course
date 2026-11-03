@@ -1177,3 +1177,26 @@ body.dark-theme .tt-dots i { background: rgba(255,255,255,.25); }
   touch-action: pan-x pan-y !important;
   -webkit-overflow-scrolling: touch;
 }
+
+/* ===== 三周连续条带 ===== */
+.tt-scroll {
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  touch-action: pan-x pan-y !important;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -14px;
+  padding: 0 14px 2px;
+  scrollbar-width: none;
+}
+.tt-scroll::-webkit-scrollbar { display: none; }
+.tt-strip {
+  display: flex;
+  align-items: flex-start;
+}
+.tt-week {
+  flex: 0 0 auto;
+  padding: 0 4px;
+}
+.tt-week .timetable {
+  width: 100% !important;
+}
