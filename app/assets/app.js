@@ -2763,6 +2763,12 @@
       // 打断进行中的换页：停在当前实际位置
       if (ttSwipe.cancelSwap) { try { ttSwipe.cancelSwap(); } catch (e) {} }
       ttSwipe.pos = readActualPos();
+      // 上一次换页被打断时位置会停在半路，基准会错乱，先归中再开始拖
+      var e0 = edges();
+      if (ttSwipe.pos < e0.left - 6 || ttSwipe.pos > e0.right + 6) {
+        ttSwipe.pos = e0.left;
+        ttSetPos(e0.left, false);
+      }
       ttSwipe.active = true;
       ttSwipe.ended = false;
       ttSwipe.axis = '';
@@ -2894,8 +2900,9 @@
         if (done) return;
         done = true;
         cleanup();
-        // 效果叠加：一次滑动可以跨多周
-        goToWeek((state.week || 1) + dir * pages);
+        // 放到下一帧再重渲染：上一帧刚做完 transform 过渡，同帧重排会看起来一顿
+        var targetWeek = (state.week || 1) + dir * pages;
+        requestAnimationFrame(function () { try { goToWeek(targetWeek); } catch (e) {} });
       }
       function onTE(ev) {
         if (!ev || ev.propertyName === 'transform') finish();
@@ -3331,6 +3338,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
