@@ -779,6 +779,7 @@
   }
 
   /** 跳转到指定教学周：不显示全屏遮罩（会白闪），改用标签微提示 + 滑动动画 */
+  var ttWeekSeq = 0;   // 切周请求序号：只认最后一次，避免乱序返回把周次"切回去"
   function goToWeek(w) {
     var total = state.totalWeeks || 22;
     if (w < 1) w = 1;
@@ -804,8 +805,11 @@
 
     // 只有这一周没有缓存时才去请求
     setWeekPending(true);
+    var seq = ++ttWeekSeq;
     call('timetable', { term: state.term || '', week: w })
       .then(function (d) {
+        // 期间又切过周了：这次结果已经过期，直接丢弃（否则会把周次"切回去"）
+        if (seq !== ttWeekSeq) return;
         d = d || {};
         var term = d.term || state.term;
         var week = d.week || w;
@@ -844,6 +848,7 @@
         setWeekPending(false);
       })
       .catch(function (e) {
+        if (seq !== ttWeekSeq) return;   // 已经有更新的切周请求，忽略这次失败
         setWeekPending(false);
         // 网络异常也尝试用缓存
         if (applyTtCache(state.term, w)) {
@@ -1421,7 +1426,8 @@
       renderCourseList(cs);
       $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
       state.lastDir = 0;
-      if (typeof ttSetPos === 'function') ttSetPos(ttPageW(), false);
+      // 只有真正切周时才归中；普通数据刷新保持当前位置（可能正在看周六日）
+      if (rot !== 0 && typeof ttSetPos === 'function') ttSetPos(ttPageW(), false);
       return;
     }
 
@@ -2577,8 +2583,27 @@
       applyWallFit(fit);
     });
   }
-  /* ================= 课表：三周条带，手势平移 + CSS transition 回弹 ================= */
-  var ttSwipe = { pos: 0, startX: 0, startPos: 0, dragging: false, pageW: 1, vpW: 1 };
+  /* ================= 课表：三周条带手势（Pointer Events） ================= */
+  var ttSwipe = {
+    pos: 0,            // 当前位移（px，越大越往右页）
+    state: 'idle',     // idle | drag | settle
+    startX: 0,
+    startY: 0,
+    startPos: 0,
+    axis: '',          // '' | 'x' | 'y'
+    raf: 0,
+    pendingX: null,
+    samples: [],
+    pageW: 1,
+    vpW: 1
+  };
+
+  // 手势参数（像素 / 速度，便于直接调）
+  var TT_DUR_SWAP = 600;      // 换页动画时长
+  var TT_DUR_SNAP = 260;      // 吸附动画时长
+  var TT_EDGE_PX = 56;        // 越过端点多少像素就换页
+  var TT_FLING_V = 0.35;      // px/ms，超过视为「甩」
+  var TT_FLING_MIN_DX = 24;   // 甩动手势的最小位移，防抖
 
   /** 一页的真实宽度：直接量 DOM，不再靠 JS 推算（屏幕变化后永远正确） */
   function ttPageW() {
@@ -2589,20 +2614,22 @@
     }
     return state.pageW || document.documentElement.clientWidth || 360;
   }
+
   function ttSetPos(x, animate, dur) {
     var strip = $('#ttStrip');
     var sc = $('#ttScroll');
     if (!strip || !sc) return;
-    // 关键：屏宽和页宽都实时读，屏幕旋转/分屏后不会用过期值把滑动截断
     var vp = sc.clientWidth || document.documentElement.clientWidth || 360;
     var pw = ttPageW();
     ttSwipe.vpW = vp;
     ttSwipe.pageW = pw;
     var max = Math.max(0, pw * 3 - vp);
     ttSwipe.pos = Math.max(0, Math.min(max, x));
-    var tr = animate ? ('transform ' + (dur || 800) + 'ms cubic-bezier(.4,0,.2,1)') : 'none';
-    if (strip.__tr !== tr) { strip.style.transition = tr; strip.__tr = tr; }
+    var tr = animate ? ('transform ' + (dur || TT_DUR_SWAP) + 'ms cubic-bezier(.4,0,.2,1)') : 'none';
+    // 不缓存 transition：每次都写，避免任何情况下位移没落地
+    strip.style.transition = tr;
     strip.style.transform = 'translateX(' + (-ttSwipe.pos) + 'px)';
+    strip.__pos = ttSwipe.pos;
   }
 
   function initTTSwipe() {
@@ -2610,134 +2637,158 @@
     var strip = $('#ttStrip');
     if (!sc || !strip) return;
 
-    var vp = sc.clientWidth || document.documentElement.clientWidth || 360;
-    ttSwipe.vpW = vp;
+    ttSwipe.vpW = sc.clientWidth || document.documentElement.clientWidth || 360;
     ttSwipe.pageW = ttPageW();
 
     if (!sc.__inited) {
       sc.__inited = true;
       var d = new Date().getDay();
       var base = ttSwipe.pageW;
-      if (d === 0 || d === 6) {
-        base = ttSwipe.pageW + Math.max(0, ttSwipe.pageW - vp);
-      }
+      if (d === 0 || d === 6) base = ttSwipe.pageW + Math.max(0, ttSwipe.pageW - ttSwipe.vpW);
+      // 首次定位
       ttSetPos(base, false);
     } else {
-      // 已经初始化过：保持当前位置（可能正在看周六日），只做边界修正
+      // 已经初始化过：保持当前位置（可能正在看周六日）
+      // 保持当前位置
       ttSetPos(ttSwipe.pos, false);
     }
 
     if (sc.__bound) return;
     sc.__bound = true;
 
-
-    function xOf(e) {
-      if (e.touches && e.touches.length) return e.touches[0].clientX;
-      return e.clientX;
+    /** 取当前边界：本周页范围 [left, right] */
+    function edges() {
+      var pw = ttPageW();
+      var vp = sc.clientWidth || ttSwipe.vpW || 360;
+      ttSwipe.pageW = pw;
+      ttSwipe.vpW = vp;
+      return { pw: pw, vp: vp, left: pw, right: 2 * pw - vp };
     }
 
-    function onStart(e) {
-      // 上一次换页动画还在跑时快速再滑：先取实际位移，避免跳一下
-      var strip = $('#ttStrip');
-      if (strip) {
-        var m = getComputedStyle(strip).transform;
-        if (m && m !== 'none' && m.indexOf('matrix') === 0) {
-          var parts = m.replace(/matrix\(|\)/g, '').split(',');
-          var tx = parseFloat(parts[4]);
-          if (!isNaN(tx)) ttSwipe.pos = -tx;
-        }
+    /** 读动画进行中的真实位移（打断时用） */
+    function readActualPos() {
+      var m = getComputedStyle(strip).transform;
+      if (m && m !== 'none' && m.indexOf('matrix') === 0) {
+        var tx = parseFloat(m.split(',')[4]);
+        if (!isNaN(tx)) return -tx;
       }
-      // 取消上一次还没完成的换页（用户又滑了，说明想反悔）
-      if (ttSwipe.cancelSwap) { try { ttSwipe.cancelSwap(); } catch (err) {} }
-      ttSwipe.startX = xOf(e);
-      ttSwipe.samples = [];   // 每次按下清空速度采样
-      ttSwipe.samples.push({ x: ttSwipe.startX, t: Date.now() });
-      ttSwipe.dragging = true;
-      ttSwipe.startPos = ttSwipe.pos;
-      ttSetPos(ttSwipe.pos, false);
+      return ttSwipe.pos;
     }
 
-    function onMove(e) {
-      if (!ttSwipe.dragging) return;
-      doMove(xOf(e));
-    }
-
-    /** 记录位移 + 速度采样，供松手时判断“甩”的力度 */
-    function doMove(x) {
-      var now = Date.now();
-      ttSwipe.curX = x;
-      ttSwipe.curT = now;
-      if (!ttSwipe.samples) ttSwipe.samples = [];
-      ttSwipe.samples.push({ x: x, t: now });
-      if (ttSwipe.samples.length > 6) ttSwipe.samples.shift();
-      ttSetPos(ttSwipe.startPos - (x - ttSwipe.startX), false);
-    }
-    function onEnd() {
-      // 注意：不能依赖 dragging 早退。手机上 touchcancel 可能先把标志清掉，
-      // 真正 touchend 到达时就被 return 掉，于是停在超出本周页的位置（周日被挤出屏幕）。
-      ttSwipe.dragging = false;
-      if (ttSwipe.swapping) return;   // 已经在换页流程中
-
-      var scNow = $('#ttScroll');
-      if (scNow) { ttSwipe.vpW = scNow.clientWidth || ttSwipe.vpW; }
-      ttSwipe.pageW = ttPageW();
-
-      var pw = ttSwipe.pageW;
-      var vp = ttSwipe.vpW;
-      var leftEdge = pw;
-      var rightEdge = 2 * pw - vp;
-      var p = ttSwipe.pos;
-      var DUR = 800;
-
-      // 松手瞬间速度（px/ms）
-      var vel = 0;
+    /** 只用最近 140ms 的采样算速度，贴近「最后一次动作」 */
+    function velocity() {
       var sp = ttSwipe.samples || [];
-      if (sp.length >= 2) {
-        var a = sp[0], b = sp[sp.length - 1];
-        var dt = b.t - a.t;
-        if (dt > 0) vel = (b.x - a.x) / dt;
+      if (sp.length < 2) return { v: 0, dx: 0 };
+      var now = Date.now();
+      // 按时间从旧到新保留（samples 本身就是按 push 顺序），过滤掉过期的
+      var recent = [];
+      for (var i = 0; i < sp.length; i++) {
+        if (now - sp[i].t <= 140) recent.push(sp[i]);
       }
-      var FLING = 0.22;   // 约 220px/s，轻轻一甩就换
-
-      var FLING_FAST = 0.5;   // 500px/s 以上：快速一甩，以最后一次动作为准，任何位置都换页
-      if (vel < -FLING_FAST) { slideThenSwap(pw * 2, 1, DUR); return; }
-      if (vel > FLING_FAST) { slideThenSwap(0, -1, DUR); return; }
-
-      // 只要滑出本周页范围，就必须给出结论：换页 或 回弹到边界（边界正好能看到周六日）
-      if (p < leftEdge - 1) {
-        if (p < leftEdge - pw * 0.06 || vel > FLING) {
-          slideThenSwap(0, -1, DUR);
-        } else {
-          ttSetPos(leftEdge, true, 300);
-        }
-        return;
-      }
-      if (p > rightEdge + 1) {
-        if (p > rightEdge + pw * 0.06 || vel < -FLING) {
-          slideThenSwap(pw * 2, 1, DUR);
-        } else {
-          ttSetPos(rightEdge, true, 300);
-        }
-        return;
-      }
-      // 本周页内松手：吸附到最近的端点（左端=周一到周五，右端=周三到周日），不停半路
-      var mid = (leftEdge + rightEdge) / 2;
-      if (p <= mid) {
-        if (Math.abs(p - leftEdge) > 2) ttSetPos(leftEdge, true, 260);
-      } else {
-        if (Math.abs(p - rightEdge) > 2) ttSetPos(rightEdge, true, 260);
-      }
+      if (recent.length < 2) recent = sp.slice(-2);
+      var a = recent[0];                       // 较旧
+      var b = recent[recent.length - 1];       // 最新
+      var dt = b.t - a.t;
+      return { v: dt > 0 ? (b.x - a.x) / dt : 0, dx: b.x - a.x };
     }
 
-    /** 滑到目标位置，动画真正结束的那一刻再换数据（比 setTimeout 精确，不会卡顿） */
-    function slideThenSwap(target, dir, dur) {
-      var strip = $('#ttStrip');
-      if (!strip) { ttSetPos(target, false); goWeek(dir); return; }
-      ttSwipe.swapping = true;
+    // ---------------- 手势生命周期 ----------------
+    // 只用两个布尔量：active（正在拖）和 ended（本次已处理过松手）。
+    // 不引入复杂状态机——之前用 state 字符串时，松手处理会被状态不符挡掉。
+    function begin(x, y) {
+      if (ttSwipe.active) return;
+      // 打断进行中的换页：停在当前实际位置
+      if (ttSwipe.cancelSwap) { try { ttSwipe.cancelSwap(); } catch (e) {} }
+      ttSwipe.pos = readActualPos();
+      ttSwipe.active = true;
+      ttSwipe.ended = false;
+      ttSwipe.axis = '';
+      ttSwipe.startX = x;
+      ttSwipe.startY = y;
+      ttSwipe.startPos = ttSwipe.pos;
+      ttSwipe.samples = [{ x: x, t: Date.now() }];
+      ttSetPos(ttSwipe.pos, false);   // 锁住位移，终止过渡
+    }
+
+    function move(x, y) {
+      if (!ttSwipe.active || ttSwipe.ended) return;
+      var dx = x - ttSwipe.startX;
+      var dy = y - ttSwipe.startY;
+
+      // 首次移动判定主方向：竖向就让页面自己滚，不拦截
+      if (!ttSwipe.axis) {
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+        ttSwipe.axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+        if (ttSwipe.axis === 'y') { ttSwipe.active = false; return; }
+      }
+      if (ttSwipe.axis !== 'x') return;
+
+      ttSwipe.samples.push({ x: x, t: Date.now() });
+      if (ttSwipe.samples.length > 8) ttSwipe.samples.shift();
+      // 直接同步写位移：不用 rAF 合并，避免「位置滞后一帧、松手时读到旧值」
+      ttSetPos(ttSwipe.startPos - dx, false);
+    }
+
+    function end() {
+      // 幂等：sc 和 window 各挂了一个 pointerup，同一手势只会处理一次
+      if (!ttSwipe.active || ttSwipe.ended) return;
+      ttSwipe.ended = true;
+      ttSwipe.active = false;
+
+      var e = edges();
+      var p = ttSwipe.pos;
+      var vel = velocity();
+      var v = vel.v;                    // px/ms，向左滑为负
+      var dxAbs = Math.abs(vel.dx);
+      // 本次手势总位移（速度算不准时的兜底依据）
+      var dd = Math.abs(p - ttSwipe.startPos);
+      var movedRight = p > ttSwipe.startPos;   // pos 变大 = 看更靠后的周
+
+      // 1) 甩动：速度够快 或 位移够大，都算「以最后一次动作为准」
+      var flingFar = dd >= e.pw * 0.35;
+      if (dxAbs >= TT_FLING_MIN_DX) {
+        if (movedRight && (v <= -TT_FLING_V || flingFar)) { swap(1); return; }
+        if (!movedRight && (v >= TT_FLING_V || flingFar)) { swap(-1); return; }
+      }
+
+      // 2) 越过端点
+      if (p < e.left) {
+        if (e.left - p >= TT_EDGE_PX) swap(-1); else snap(e.left);
+        return;
+      }
+      if (p > e.right) {
+        if (p - e.right >= TT_EDGE_PX) swap(1); else snap(e.right);
+        return;
+      }
+
+      // 3) 在两端之间：吸附到更近的一端（左端=周一到周五，右端=周三到周日）
+      var mid = (e.left + e.right) / 2;
+      snap(p <= mid ? e.left : e.right);
+    }
+
+    function snap(target) {
+      if (Math.abs(ttSwipe.pos - target) < 2) return;
+      ttSetPos(target, true, TT_DUR_SNAP);
+      // 双保险：动画结束后再确认一次位置，防止被其它渲染覆盖而停在半路
+      setTimeout(function () {
+        if (!ttSwipe.active && Math.abs(ttSwipe.pos - target) < 2) {
+          var st = $('#ttStrip');
+          if (st) {
+            var m = getComputedStyle(st).transform;
+            var cur = (m && m !== 'none') ? -parseFloat(m.split(',')[4]) : NaN;
+            if (isNaN(cur) || Math.abs(cur - target) > 2) ttSetPos(target, false);
+          }
+        }
+      }, TT_DUR_SNAP + 40);
+    }
+
+    /** 滑到相邻页，动画真正结束后再换数据 */
+    function swap(dir) {
+      var e = edges();
+      var target = dir > 0 ? e.pw * 2 : 0;
       var done = false;
-      var timer = setTimeout(finish, dur + 150);
+      var timer = setTimeout(finish, TT_DUR_SWAP + 200);
       function cleanup() {
-        ttSwipe.swapping = false;
         strip.removeEventListener('transitionend', onTE);
         if (timer) { clearTimeout(timer); timer = null; }
         ttSwipe.cancelSwap = null;
@@ -2746,33 +2797,62 @@
         if (done) return;
         done = true;
         cleanup();
+        // 换页完成
         goWeek(dir);
       }
-      function onTE(e) {
-        if (!e || e.propertyName === 'transform') finish();
+      function onTE(ev) {
+        if (!ev || ev.propertyName === 'transform') finish();
       }
-      // 让 onStart 能取消掉这次挂起的换页（用户又滑了就是反悔）
+      // 用户又滑了 → 取消这次换页，停在当前位置
       ttSwipe.cancelSwap = function () { done = true; cleanup(); };
       strip.addEventListener('transitionend', onTE);
-      ttSetPos(target, true, dur);
+      ttSetPos(target, true, TT_DUR_SWAP);
     }
 
-    sc.addEventListener('touchstart', onStart, { passive: true });
-    sc.addEventListener('touchmove', onMove, { passive: true });
-    sc.addEventListener('touchend', onEnd, { passive: true });
-    sc.addEventListener('touchcancel', onEnd, { passive: true });
-
-    sc.addEventListener('mousedown', function (e) {
-      if (e.button !== 0) return;
-      onStart(e);
-    });
-    document.addEventListener('mousemove', function (e) {
-      if (!ttSwipe.dragging) return;
-      onMove(e);
-    });
-    document.addEventListener('mouseup', onEnd);
+    // ---------------- 事件绑定 ----------------
+    // pointerup 可能因为指针捕获、快速抬手、合成事件等原因落不到 sc 上，
+    // 所以在 window 上也挂一份兜底，end() 自身是幂等的（state 不是 drag 就直接返回）。
+    if (window.PointerEvent) {
+      sc.addEventListener('pointerdown', function (ev) {
+        if (ev.button !== undefined && ev.button !== 0) return;
+        if (ev.isPrimary === false) return;
+        try { sc.setPointerCapture(ev.pointerId); } catch (err) {}
+        begin(ev.clientX, ev.clientY);
+      });
+      sc.addEventListener('pointermove', function (ev) {
+        move(ev.clientX, ev.clientY);
+      });
+      sc.addEventListener('pointerup', function () { end(); });
+      sc.addEventListener('pointercancel', function () { end(); });
+      window.addEventListener('pointerup', function () { end(); });
+      document.addEventListener('pointerup', function () { if (ttSwipe.active) end(); }, true);
+      document.addEventListener('pointercancel', function () { if (ttSwipe.active) end(); }, true);
+      window.addEventListener('blur', function () { if (ttSwipe.active) end(); });
+      window.addEventListener('pointercancel', function () { end(); });
+    } else {
+      sc.addEventListener('touchstart', function (ev) {
+        if (ev.touches.length !== 1) return;
+        begin(ev.touches[0].clientX, ev.touches[0].clientY);
+      }, { passive: true });
+      sc.addEventListener('touchmove', function (ev) {
+        if (ev.touches.length !== 1) return;
+        move(ev.touches[0].clientX, ev.touches[0].clientY);
+      }, { passive: true });
+      sc.addEventListener('touchend', function () { end(); }, { passive: true });
+      sc.addEventListener('touchcancel', function () { end(); }, { passive: true });
+      window.addEventListener('touchend', function () { end(); }, { passive: true });
+      // 鼠标（桌面预览）
+      sc.addEventListener('mousedown', function (ev) {
+        if (ev.button !== 0) return;
+        begin(ev.clientX, ev.clientY);
+      });
+      document.addEventListener('mousemove', function (ev) {
+        if (!ttSwipe.active) return;
+        move(ev.clientX, ev.clientY);
+      });
+      document.addEventListener('mouseup', function () { end(); });
+    }
   }
-
   function resetSwipeOffset() { }
   $('#rowWallpaper').addEventListener('click', function () {
     call('pickWallpaper').catch(function () {
