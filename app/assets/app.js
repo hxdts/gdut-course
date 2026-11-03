@@ -825,7 +825,9 @@
     if (w === state.week) return;
 
     var dir = w > (state.week || 1) ? 1 : -1;
-    state.lastDir = dir;   // 渲染时用这个方向做 DOM 轮转（只重建一页）
+    if (Math.abs(w - (state.week || 1)) > 1) state.forceRebuild = true;
+    // 跨多周时不能只轮转一页 DOM，必须整体重建，否则周数跳了内容只换一周（错配）
+    state.lastDir = dir;
     state.week = w;        // 关键：少了这行的话，切周只换了数据不换周次
 
     // 课表已整学期缓存在本地：有缓存就直接用，不走网络（换周瞬间完成）
@@ -1464,7 +1466,7 @@
       '</div></div>';
     // ★ 增量更新：条带还在就只替换必要的那一页，不重建外层 DOM
     var existStrip = $('#ttStrip');
-    if (existStrip && existStrip.children.length === 3) {
+    if (!state.forceRebuild && existStrip && existStrip.children.length === 3) {
       var rot = state.lastDir || 0;
       if (rot > 0) {
         // 切到下一周：把第一页挪到末尾，只重建新的「下一周」这一页
@@ -1493,6 +1495,7 @@
     html += '<div class="card" id="courseListCard" style="margin-top:12px"></div>';
 
     wrap.innerHTML = html;
+    state.forceRebuild = false;
     renderCourseList(cs);
     $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
 
@@ -2660,7 +2663,7 @@
   // 手势参数（像素 / 速度，便于直接调）
   var TT_DUR_SWAP = 320;      // 换页动画时长（要短，否则滑完像没反应）
   var TT_DUR_SNAP = 220;      // 吸附动画时长
-  var TT_EDGE_PX = 56;        // 越过端点多少像素就换页
+  var TT_EDGE_PX = 44;        // 越过端点多少像素就换页
   var TT_FLING_V = 0.55;      // px/ms，超过视为「甩」
   var TT_FLING_MIN_DX = 24;   // 甩动手势的最小位移，防抖
 
@@ -2803,6 +2806,15 @@
       var canPrev = cur > 1;
       var canNext = cur < total;
 
+      // 诊断记录（连点版本号 6 次开启的手势浮层会显示）
+      window.__lastJudge = {
+        p: Math.round(p), start: Math.round(ttSwipe.startPos),
+        left: Math.round(e.left), right: Math.round(e.right),
+        v: Math.round(v * 100) / 100, dx: Math.round(dxAbs),
+        cur: cur, canPrev: canPrev ? 1 : 0, canNext: canNext ? 1 : 0,
+        dir: 0, pages: 1
+      };
+
       // 向右滑（看更靠后的周）
       if (p > e.right) {
         var overR = p - e.right;
@@ -2811,6 +2823,7 @@
         if (overR >= TT_EDGE_PX || fastR) {
           // 效果叠加：越过 1 页就跨 1 周，越过 2 页跨 2 周……最多 4 周
           var pagesR = Math.max(1, Math.min(4, Math.floor(overR / e.pw) + 1));
+          if (window.__lastJudge) { window.__lastJudge.dir = 1; window.__lastJudge.pages = pagesR; }
           swap(1, pagesR);
         } else {
           snap(e.right);
@@ -2824,6 +2837,7 @@
         if (!canPrev) { snap(e.left); return; }
         if (overL >= TT_EDGE_PX || fastL) {
           var pagesL = Math.max(1, Math.min(4, Math.floor(overL / e.pw) + 1));
+          if (window.__lastJudge) { window.__lastJudge.dir = -1; window.__lastJudge.pages = pagesL; }
           swap(-1, pagesL);
         } else {
           snap(e.left);
@@ -3249,7 +3263,15 @@
       '  vp:' + Math.round(st.vpW || 0) + '\n' +
       '判定  阈值Edge:' + (typeof TT_EDGE_PX !== 'undefined' ? TT_EDGE_PX : '?') +
       '  vel:' + (gdbg.lastVel.toFixed(2)) + '\n' +
-      '周次  ' + gdbg.week + '   最后事件: ' + gdbg.lastEvt;
+      '周次  ' + gdbg.week + '   最后事件: ' + gdbg.lastEvt + '\n' +
+      (function () {
+        var j = window.__lastJudge;
+        if (!j) return '判定  还没滑过';
+        return '判定  p:' + j.p + ' 范围[' + j.left + ',' + j.right + ']' +
+          ' v:' + j.v + ' dx:' + j.dx + '\n' +
+          '      周' + j.cur + ' canPrev:' + j.canPrev + ' canNext:' + j.canNext +
+          ' dir:' + j.dir + ' pages:' + j.pages;
+      })();
   }
 
   function gdbgInit() {
@@ -3297,6 +3319,9 @@
   bindLoginCheckboxes();
   boot();
 })();
+
+
+
 
 
 
