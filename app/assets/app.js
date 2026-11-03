@@ -405,13 +405,22 @@
     } catch (e) {}
     var localWeek = guessWeekFromStart(savedStart);
     state.week = localWeek > 0 ? localWeek : 0;
-    // 先用本地缓存立刻画出课表，不等网络（联网启动慢的主要来源）
+    // 立刻把课表画出来：有缓存就显示课程，没缓存也要画出空网格，
+    // 绝不能留一片空白让用户以为卡死
     try {
-      if (state.week > 0 && applyTtCache(state.term, state.week)) {
-        renderTimetable();
-        renderLastUpdated();
+      if (state.week > 0) {
+        applyTtCache(state.term, state.week);   // 有就填进去，没有也不影响后面
+        state.ttError = '';
       }
-    } catch (e) {}
+      if (state.week < 1) state.week = 1;
+      renderTimetable();
+      renderGrades();
+      renderCet();
+      renderFitness();
+      renderLastUpdated();
+    } catch (e) {
+      window.__lastErr = 'enterApp render: ' + (e && e.message);
+    }
     setTimeout(function () {
       refresh(false);
     }, 300);
@@ -1545,9 +1554,11 @@
     // 这一周没课也要渲染条带（空网格），否则手势无处可滑、换不了周
     var isEmptyWeek = !cs.length;
     if (isEmptyWeek) {
-      var emsg = state.ttError
+      state.emptyHint = state.ttError
         ? state.ttError
-        : '第 ' + (state.week || 1) + ' 周教务系统没有返回课程。';
+        : '正在加载第 ' + (state.week || 1) + ' 周课表…';
+    } else {
+      state.emptyHint = '';
     }
 
     // 连续时间线：上一周 | 本周 | 下一周。宽度和列宽全部由 CSS（100vw）自适应，
@@ -1592,7 +1603,7 @@
     var days = ['一', '二', '三', '四', '五', '六', '日'];
     html += '<div class="card" id="courseListCard" style="margin-top:12px"></div>';
 
-    wrap.innerHTML = html;
+    wrap.innerHTML = html + (state.emptyHint ? '<div class="tt-empty-hint">' + esc(state.emptyHint) + '</div>' : '');
     state.forceRebuild = false;
     renderCourseList(cs);
     $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
