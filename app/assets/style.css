@@ -1126,3 +1126,20 @@ body.dark-theme .tt-dots i { background: rgba(255,255,255,.25); }
 
 
 
+
+/* ===== 课表三页轨道（上一周 / 本周 / 下一周）===== */
+.tt-viewport { overflow: hidden; margin: 0; padding: 0; }
+.tt-track {
+  display: flex;
+  width: 300%;
+  will-change: transform;
+  transform: translateX(-33.3333%);
+}
+.tt-slab {
+  flex: 0 0 33.3333%;
+  min-width: 0;
+}
+.tt-slab .timetable {
+  width: 100% !important;
+  gap: 3px !important;
+}
