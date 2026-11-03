@@ -2667,20 +2667,23 @@
       ttSetPos(ttSwipe.startPos - (x - ttSwipe.startX), false);
     }
     function onEnd() {
-      // 用实时屏宽算边界，避免过期值导致"到不了周末也换不了周"
+      // 注意：不能依赖 dragging 早退。手机上 touchcancel 可能先把标志清掉，
+      // 真正 touchend 到达时就被 return 掉，于是停在超出本周页的位置（周日被挤出屏幕）。
+      ttSwipe.dragging = false;
+      if (ttSwipe.swapping) return;   // 已经在换页流程中
+
       var scNow = $('#ttScroll');
       if (scNow) { ttSwipe.vpW = scNow.clientWidth || ttSwipe.vpW; }
       ttSwipe.pageW = state.pageW || ttSwipe.pageW;
-      if (!ttSwipe.dragging) return;
-      ttSwipe.dragging = false;
+
       var pw = ttSwipe.pageW;
       var vp = ttSwipe.vpW;
       var leftEdge = pw;
       var rightEdge = 2 * pw - vp;
       var p = ttSwipe.pos;
-      var DUR = 800;   // 换页动画时长（与 ttSetPos 的 transition 一致）
+      var DUR = 800;
 
-      // 松手瞬间的速度（px/ms）：快速一甩时以“最新动作”为准，不等滑够距离
+      // 松手瞬间速度（px/ms）
       var vel = 0;
       var sp = ttSwipe.samples || [];
       if (sp.length >= 2) {
@@ -2688,34 +2691,37 @@
         var dt = b.t - a.t;
         if (dt > 0) vel = (b.x - a.x) / dt;
       }
-      var FLING = 0.5;   // 约 500px/s
+      var FLING = 0.35;   // 约 350px/s，轻轻一甩就换
 
-      // 已经越过本周边界的部分：位置够了 或 甩得够快，都直接换页
-      if (p < leftEdge) {
-        if (p < leftEdge - pw * 0.12 || vel > FLING) {
+      // 只要滑出本周页范围，就必须给出结论：换页 或 回弹到边界（边界正好能看到周六日）
+      if (p < leftEdge - 1) {
+        if (p < leftEdge - pw * 0.10 || vel > FLING) {
           slideThenSwap(0, -1, DUR);
         } else {
-          ttSetPos(leftEdge, true, 320);
+          ttSetPos(leftEdge, true, 300);
         }
         return;
       }
-      if (p > rightEdge) {
-        if (p > rightEdge + pw * 0.12 || vel < -FLING) {
+      if (p > rightEdge + 1) {
+        if (p > rightEdge + pw * 0.10 || vel < -FLING) {
           slideThenSwap(pw * 2, 1, DUR);
         } else {
-          ttSetPos(rightEdge, true, 320);
+          ttSetPos(rightEdge, true, 300);
         }
         return;
       }
+      // 位置本来就在本周页内：什么都不做（保持你在看的那几天）
     }
 
     /** 滑到目标位置，动画真正结束的那一刻再换数据（比 setTimeout 精确，不会卡顿） */
     function slideThenSwap(target, dir, dur) {
       var strip = $('#ttStrip');
       if (!strip) { ttSetPos(target, false); goWeek(dir); return; }
+      ttSwipe.swapping = true;
       var done = false;
       var timer = setTimeout(finish, dur + 150);
       function cleanup() {
+        ttSwipe.swapping = false;
         strip.removeEventListener('transitionend', onTE);
         if (timer) { clearTimeout(timer); timer = null; }
         ttSwipe.cancelSwap = null;
@@ -3019,6 +3025,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
