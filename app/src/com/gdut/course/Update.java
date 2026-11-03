@@ -149,7 +149,15 @@ public class Update {
             File out = new File(dir, "update.apk");
             if (out.exists()) out.delete();
 
-            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+            // 关键：给下载地址加时间戳。
+            // 文件名是固定的 gdut-course.apk，raw 代理（ghproxy 等）会强缓存它，
+            // 不加时间戳时下载到的会是上一个版本。
+            String dl = url;
+            if (dl != null && !dl.isEmpty()) {
+                dl += (dl.indexOf('?') >= 0 ? "&" : "?") + "t=" + System.currentTimeMillis();
+            }
+
+            HttpURLConnection c = (HttpURLConnection) new URL(dl).openConnection();
             c.setConnectTimeout(20000);
             c.setReadTimeout(60000);
             c.setRequestProperty("User-Agent", Net.UA);
