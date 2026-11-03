@@ -2551,7 +2551,7 @@
     var max = ttSwipe.pageW * 3 - ttSwipe.vpW;
     ttSwipe.pos = Math.max(0, Math.min(max, x));
     // 换页用长动画（默认 3000ms），回弹传 320 走短动画
-    strip.style.transition = animate ? ('transform ' + (dur || 3000) + 'ms cubic-bezier(.3,.74,.3,1)') : 'none';
+    strip.style.transition = animate ? ('transform ' + (dur || 1000) + 'ms cubic-bezier(.4,0,.2,1)') : 'none';
     strip.style.transform = 'translateX(' + (-ttSwipe.pos) + 'px)';
   }
 
@@ -2604,15 +2604,15 @@
       var leftEdge = pw;
       var rightEdge = 2 * pw - vp;
       var p = ttSwipe.pos;
-      var DUR = 3000;   // 换页动画时长（跟 ttSetPos 的 transition 一致）
+      var DUR = 1000;   // 换页动画时长（跟 ttSetPos 的 transition 一致）
 
       // 越过相邻周 18%：先把整页滑完（看得见的换页动画），动画结束后再换数据
-      if (p < leftEdge - pw * 0.18) {
+      if (p < leftEdge - pw * 0.38) {
         ttSetPos(0, true);
         setTimeout(function () { goWeek(-1); }, DUR);
         return;
       }
-      if (p > rightEdge + pw * 0.18) {
+      if (p > rightEdge + pw * 0.38) {
         ttSetPos(pw * 2, true);
         setTimeout(function () { goWeek(1); }, DUR);
         return;
@@ -2910,6 +2910,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
