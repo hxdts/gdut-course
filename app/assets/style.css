@@ -958,3 +958,16 @@ html, body {
 }
 .wp-ed-tool:active { background: rgba(255,255,255,.18); }
 .wp-ed-tool svg { width: 19px; height: 19px; }
+
+/* 壁纸屏幕适应选项 */
+.fit-row { display: flex; gap: 10px; margin-top: 4px; }
+.fit-item {
+  flex: 1; text-align: center; padding: 11px 0;
+  border-radius: 13px; background: #f4f6fb;
+  color: var(--text); font-size: calc(13px * var(--fs, 1));
+  border: 1.5px solid transparent;
+}
+.fit-item.on {
+  background: rgba(47,107,255,.10);
+  border-color: var(--blue); color: var(--blue); font-weight: 600;
+}
