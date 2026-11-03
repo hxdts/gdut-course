@@ -173,7 +173,7 @@ input {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 10px; font-size: calc(13px * var(--fs, 1)); color: var(--sub);
 }
-.week-bar .wk { font-weight: 600; color: var(--tt-week, var(--text)); font-size: calc(14px * var(--fs, 1)); }
+.week-bar .wk { font-weight: 600; color: var(--tt-week, var(--text)); font-size: calc(14px * var(--fs, 1) * var(--fs-week, 1)); }
 .week-bar .wk::after { content: "▾"; font-size: calc(10px * var(--fs, 1)); margin-left: 4px; color: var(--sub); vertical-align: 1px; }
 .wk-nav { display: flex; align-items: center; gap: 10px; }
 #weekLabel { padding: 4px 6px; border-radius: 8px; }
@@ -222,15 +222,15 @@ input {
   width: max-content;
 }
 .tt-head {
-  font-size: calc(10.5px * var(--fs, 1)); color: var(--tt-day, var(--sub)); text-align: center; padding: 4px 0 6px; font-weight: 500;
+  font-size: calc(10.5px * var(--fs, 1) * var(--fs-day, 1)); color: var(--tt-day, var(--sub)); text-align: center; padding: 4px 0 6px; font-weight: 500;
 }
 .tt-side {
-  font-size: calc(9.5px * var(--fs, 1)); color: var(--tt-sec, #a9b1c4); display: flex; flex-direction: column;
+  font-size: calc(9.5px * var(--fs, 1) * var(--fs-sec, 1)); color: var(--tt-sec, #a9b1c4); display: flex; flex-direction: column;
   align-items: center; justify-content: center; line-height: 1.15;
 }
 .tt-cell { min-height: 52px; border-radius: 8px; position: relative; }
 .tt-course {
-  border-radius: 8px; padding: 4px 3px; font-size: calc(10px * var(--fs, 1)); line-height: 1.3; letter-spacing: .25px;
+  border-radius: 8px; padding: 4px 3px; font-size: calc(10px * var(--fs, 1) * var(--fs-course, 1)); line-height: 1.3; letter-spacing: .25px;
   overflow: hidden; color: var(--tt-course, #fff); height: 100%;
   display: flex; flex-direction: column; gap: 1px;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.16);
@@ -264,7 +264,7 @@ input {
   padding: 11px 0; border-bottom: 1px solid var(--line);
 }
 .course-row:last-child { border-bottom: none; }
-.course-row .nm { flex: 1; font-size: calc(14px * var(--fs, 1)); }
+.course-row .nm { flex: 1; font-size: calc(14px * var(--fs, 1) * var(--fs-week, 1)); }
 .course-row .meta { font-size: calc(11px * var(--fs, 1)); color: var(--sub); margin-top: 2px; }
 .score-pill {
   font-size: calc(14px * var(--fs, 1)); font-weight: 700; min-width: 42px; text-align: right;
@@ -419,7 +419,7 @@ body.has-wallpaper .tabbar { background: rgba(255,255,255,.95); }
 .cs-close:active { background: #dfe8ff; }
 
 /* 课表日期 */
-.tt-date { display: block; font-size: calc(9px * var(--fs, 1)); color: var(--tt-date, #b8c0d2); font-weight: 400; margin-top: 1px; }
+.tt-date { display: block; font-size: calc(9px * var(--fs, 1) * var(--fs-date, 1)); color: var(--tt-date, #b8c0d2); font-weight: 400; margin-top: 1px; }
 .tt-date.today { color: var(--blue); font-weight: 700; }
 #diag, #terms {
   position: fixed; inset: 0; background: #fff; z-index: 90;
@@ -790,4 +790,33 @@ body.dark-theme .color-line::after {
   position: absolute; left: 0; top: 0; bottom: 0;
   border-radius: 4px; background: var(--blue);
   transition: width .15s;
+}
+
+
+/* 课表文字字号（五类独立） */
+.ttfs-list { display: flex; flex-direction: column; gap: 8px; }
+.ttfs-row { display: flex; align-items: center; gap: 10px; }
+.ttfs-name {
+  flex: 0 0 60px;
+  font-size: calc(13.5px * var(--fs, 1)); color: var(--text);
+}
+.ttfs-btn {
+  flex: 0 0 auto; width: 34px; height: 32px; border-radius: 10px;
+  background: #f4f6fb; color: var(--text);
+  font-size: calc(16px * var(--fs, 1)); font-weight: 600; line-height: 1;
+}
+.ttfs-btn:active { background: #e3ebff; }
+.ttfs-bar {
+  flex: 1; height: 6px; border-radius: 3px;
+  background: #e6eaf3; position: relative; overflow: hidden;
+}
+.ttfs-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  border-radius: 3px; background: var(--blue);
+  transition: width .15s;
+}
+.ttfs-val {
+  flex: 0 0 44px; text-align: right;
+  font-size: calc(12.5px * var(--fs, 1)); color: var(--sub);
+  font-variant-numeric: tabular-nums;
 }
