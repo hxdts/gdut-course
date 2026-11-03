@@ -1200,3 +1200,17 @@ body.dark-theme .tt-dots i { background: rgba(255,255,255,.25); }
 .tt-week .timetable {
   width: 100% !important;
 }
+
+/* ===== 三周条带：手势平移 + CSS transition 回弹（不用原生滚动）===== */
+.tt-scroll {
+  overflow: hidden !important;      /* 由 transform 控制位移，禁用原生滚动 */
+  touch-action: pan-y !important;   /* 横滑交给 JS，竖滑留给页面 */
+  margin: 0 -14px;
+  padding: 0 14px 2px;
+}
+.tt-strip {
+  display: flex;
+  align-items: flex-start;
+  will-change: transform;
+  transform: translateX(0);
+}
