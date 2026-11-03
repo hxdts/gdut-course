@@ -3340,6 +3340,27 @@
       renderFitness();
       return;
     }
+    // 打开即课表：本地存过账号密码就直接进主界面（用缓存渲染），
+    // 登录态放后台确认，确认失败再静默重登，全程不挡用户
+    var savedC = getSavedLogin();
+    var skipAuto = false;
+    try { skipAuto = localStorage.getItem('noAutoLogin') === '1'; } catch (e) {}
+    if (savedC.sid && savedC.pwd && !skipAuto) {
+      state.sid = savedC.sid;
+      enterApp();
+      call('status').then(function (s) {
+        if (s && s.loggedIn) {
+          state.sid = s.sid || state.sid;
+          state.name = s.name || '';
+          setTimeout(refresh, 60);
+        } else {
+          reLoginAndRetry(savedC.sid, savedC.pwd);
+        }
+      }).catch(function () {
+        reLoginAndRetry(savedC.sid, savedC.pwd);
+      });
+      return;
+    }
     call('status').then(function (s) {
       if (s && s.loggedIn) {
         state.sid = s.sid || '';
@@ -3347,7 +3368,6 @@
         enterApp();
         setTimeout(autoCheckUpdate, 900);
       } else {
-        
         $('#login').classList.remove('booting');
         if (s && s.sid) $('#sid').value = s.sid;
         setTimeout(function () {
@@ -3362,7 +3382,6 @@
         }, 400);
       }
     }).catch(function () {
-      
       $('#login').classList.remove('booting');
       setTimeout(function () { autoLogin(); }, 300);
     });
