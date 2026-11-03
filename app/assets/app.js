@@ -1362,11 +1362,11 @@
     }
     // 连续时间线：上一周 | 本周 | 下一周 并排，横向滚动可以一路滑过去
     var vpW = document.documentElement.clientWidth || 360;
-    var colW = Math.max(50, Math.floor((vpW - 40) / 5));
+    var colW = Math.max(46, Math.floor((vpW - 108) / 5));
     var curW = state.week || 1;
     var prevC = coursesOfWeek(curW - 1);
     var nextC = coursesOfWeek(curW + 1);
-    var pageW = 26 + colW * 7 + 24;
+    var pageW = 26 + colW * 7 + 3 * 8 + 8;
     state.pageW = pageW;
     var html = '<div class="tt-scroll" id="ttScroll">' +
       '<div class="tt-strip" id="ttStrip" style="width:' + (pageW * 3) + 'px">' +
@@ -2901,6 +2901,8 @@
   bindLoginCheckboxes();
   boot();
 })();
+
+
 
 
 
