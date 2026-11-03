@@ -154,9 +154,7 @@ public class MainActivity extends android.app.Activity {
         s.setSupportZoom(false);
         s.setBuiltInZoomControls(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        // 界面 WebView 禁用缓存：资源文件名带版本号，但 index.html 本身会被缓存，
-        // 一旦缓存到旧版就会去引用已删除的 js，直接白屏
-        s.setCacheMode(isUi ? WebSettings.LOAD_NO_CACHE : WebSettings.LOAD_DEFAULT);
+        s.setCacheMode(WebSettings.LOAD_DEFAULT);
         if (!isUi) {
             s.setUserAgentString(Net.UA.replace("Mobile ", "Mobile "));
         }
