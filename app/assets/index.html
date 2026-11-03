@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>广工课表</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- 壁纸层：图片比例不匹配时，用同一张图的模糊放大版填满空白 -->
+<div id="wp" class="hidden">
+  <div class="wp-blur" id="wpBlur"></div>
+  <div class="wp-img" id="wpImg"></div>
+</div>
+
+<!-- ==================== 登录 ==================== -->
+<div id="login">
+  <div class="glow"></div>
+  <div class="login-card">
+    <div class="brand">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round">
+          <rect x="3" y="4.5" width="18" height="16" rx="3"/>
+          <path d="M3 9.5h18M9 9.5v11M15 9.5v11M3 15h18"/>
+        </svg>
+      </div>
+      <div>
+        <h1>广工课表</h1>
+        <div class="sub">广东工业大学 · 教务助手</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#8b93a7" stroke-width="1.9" stroke-linecap="round">
+        <circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.3-6 7.5-6s7.5 2.4 7.5 6"/>
+      </svg>
+      <input id="sid" type="tel" inputmode="numeric" placeholder="学号" autocomplete="username">
+    </div>
+
+    <div class="field">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#8b93a7" stroke-width="1.9" stroke-linecap="round">
+        <rect x="4" y="10" width="16" height="10.5" rx="2.6"/>
+        <path d="M8 10V7.2a4 4 0 0 1 8 0V10"/>
+      </svg>
+      <input id="pwd" type="password" placeholder="统一身份认证密码" autocomplete="current-password">
+    </div>
+
+    <div class="field hidden" id="capField">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#8b93a7" stroke-width="1.9" stroke-linecap="round">
+        <path d="M4 6h16v12H4z"/><path d="M7 10h4M7 14h6"/>
+      </svg>
+      <input id="cap" type="text" placeholder="验证码" autocomplete="off">
+    </div>
+
+    <div class="agree-row" id="agreeRow">
+      <div class="box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 12.5l5 5L20 6.5"/>
+        </svg>
+      </div>
+      <div class="txt">我已阅读并同意 <span class="lnk" id="lnkTerms">《用户协议与隐私说明》</span></div>
+    </div>
+
+    <button class="btn-primary" id="btnLogin">登 录</button>
+
+    <div class="login-msg" id="loginMsg"></div>
+
+    <div class="login-foot">
+      <span>密码仅用于登录学校统一认证</span>
+      <span class="link" id="btnWebLogin">网页登录</span>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 主体 ==================== -->
+<div id="app" class="hidden">
+
+  <div class="topbar">
+    <div class="row">
+      <div>
+        <h2 id="pageTitle">我的课表</h2>
+        <div class="who" id="whoLine">未登录</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <div class="icon-btn" id="btnRefresh" title="刷新">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M20.8 4.2v5.2h-5.2"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- 课表 -->
+    <div class="page active" id="page-tt">
+      <div class="week-bar">
+        <div class="wk-nav">
+          <span class="wk-btn" id="prevWeek">‹</span>
+          <span class="wk" id="weekLabel">本周</span>
+          <span class="wk-btn" id="nextWeek">›</span>
+        </div>
+      </div>
+      <div id="ttWrap"></div>
+    </div>
+
+    <!-- 成绩 -->
+    <div class="page" id="page-grade">
+      <div id="gradeWrap"></div>
+    </div>
+
+    <!-- 四六级 -->
+    <div class="page" id="page-cet">
+      <div id="cetWrap"></div>
+    </div>
+
+    <!-- 体测 -->
+    <div class="page" id="page-fit">
+      <div id="fitWrap"></div>
+    </div>
+
+    <!-- 我的 -->
+    <div class="page" id="page-me">
+
+      <!-- 外观 -->
+      <div class="card">
+        <div class="card-title">外观</div>
+        <div class="course-row" id="rowWallpaper">
+          <div style="flex:1">
+            <div class="nm">设置壁纸</div>
+            <div class="meta" id="wallMeta">从相册选一张图片，自动模糊填充</div>
+          </div>
+          <div style="color:var(--sub)">›</div>
+        </div>
+        <div class="course-row" id="rowWallClear">
+          <div style="flex:1"><div class="nm" style="color:var(--danger)">移除壁纸</div></div>
+        </div>
+
+        <div class="theme-block">
+          <div class="nm" style="margin-bottom:11px">主题色</div>
+          <div class="theme-dots" id="themeDots"></div>
+        </div>
+
+        <div class="theme-block">
+          <div class="nm" style="margin-bottom:11px">课程配色</div>
+          <div class="palette-row" id="paletteRow"></div>
+        </div>
+
+        <div class="theme-block">
+          <div class="opt-head">
+            <span class="nm">课程透明度</span>
+            <span class="opt-val" id="opacityVal">10%</span>
+          </div>
+          <div class="oslider" id="opacitySlider">
+            <div class="oslider-track"></div>
+            <div class="oslider-fill" id="opacityFill"></div>
+            <div class="oslider-thumb" id="opacityThumb"></div>
+          </div>
+        </div>
+
+        <div class="theme-block">
+          <div class="opt-head">
+            <span class="nm">字体大小</span>
+            <span class="opt-val" id="fontVal">100%</span>
+          </div>
+          <div class="fs-row">
+            <button class="fs-btn" id="fsMinus">A−</button>
+            <div class="fs-bar"><div class="fs-fill" id="fsFill"></div></div>
+            <button class="fs-btn" id="fsPlus">A+</button>
+          </div>
+        </div>
+
+        <div class="theme-block">
+          <div class="opt-head" style="margin-bottom:8px">
+            <span class="muted">课表文字颜色</span>
+            <span class="color-hint">左右滑动</span>
+            <span class="link" id="rowResetColors" style="font-size:12.5px">恢复默认</span>
+          </div>
+          <div class="color-line"><span class="ck">周次</span><div class="swatches" data-for="week"></div></div>
+          <div class="color-line sub"><span class="ck">↳描边</span><div class="swatches" data-for="weekStroke"></div></div>
+          <div class="color-line"><span class="ck">星期</span><div class="swatches" data-for="day"></div></div>
+          <div class="color-line sub"><span class="ck">↳描边</span><div class="swatches" data-for="dayStroke"></div></div>
+          <div class="color-line"><span class="ck">日期</span><div class="swatches" data-for="date"></div></div>
+          <div class="color-line sub"><span class="ck">↳描边</span><div class="swatches" data-for="dateStroke"></div></div>
+          <div class="color-line"><span class="ck">节数</span><div class="swatches" data-for="sec"></div></div>
+          <div class="color-line sub"><span class="ck">↳描边</span><div class="swatches" data-for="secStroke"></div></div>
+          <div class="color-line"><span class="ck">课程文字</span><div class="swatches" data-for="course"></div></div>
+          <div class="color-line sub"><span class="ck">↳描边</span><div class="swatches" data-for="courseStroke"></div></div>
+        </div>
+
+        <div class="theme-block">
+          <div class="opt-head"><span class="nm">描边粗细</span><span class="opt-val" id="strokeVal">自动</span></div>
+          <div class="palette-row" id="strokeRow"></div>
+        </div>
+      </div>
+
+      <!-- 更新 -->
+      <div class="card">
+        <div class="card-title">更新</div>
+        <div class="course-row" id="rowUpdateFile">
+          <div style="flex:1">
+            <div class="nm">从手机文件更新</div>
+            <div class="meta">选一个 APK 安装包，直接安装</div>
+          </div>
+          <div style="color:var(--sub)">›</div>
+        </div>
+        <div class="course-row" id="rowUpdate">
+          <div style="flex:1">
+            <div class="nm">在线检查更新</div>
+            <div class="meta" id="verMeta">当前版本 v5.0</div>
+          </div>
+          <div style="color:var(--sub)">›</div>
+        </div>
+      </div>
+
+      <!-- 账号 -->
+      <div class="card">
+        <div class="card-title">账号</div>
+        <div class="course-row">
+          <div style="flex:1">
+            <div class="nm" id="meSid">—</div>
+            <div class="meta">统一身份认证学号</div>
+          </div>
+        </div>
+        <div class="course-row" id="rowClear">
+          <div style="flex:1"><div class="nm" style="color:var(--danger)">退出登录</div></div>
+        </div>
+      </div>
+
+      <!-- 数据 -->
+      <div class="card">
+        <div class="card-title">数据</div>
+        <div class="course-row" id="rowSniff">
+          <div style="flex:1">
+            <div class="nm">打开教务系统</div>
+            <div class="meta">在网页里查看课表、成绩等原始页面</div>
+          </div>
+          <div style="color:var(--sub)">›</div>
+        </div>
+      </div>
+
+      <div class="muted" style="text-align:center;margin-top:18px">
+        广工课表 v5.0 · 数据来自学校教务系统<br>本应用不保存你的密码
+      </div>
+    </div>
+
+  <div class="tabbar">
+    <div class="tab active" data-page="tt">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+        <rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M9 9.5v11M15 9.5v11"/>
+      </svg>
+      <span>课表</span>
+    </div>
+    <div class="tab" data-page="grade">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+        <path d="M4 19V9M10 19V5M16 19v-6M22 19H2"/>
+      </svg>
+      <span>成绩</span>
+    </div>
+    <div class="tab" data-page="cet">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+        <circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.5 2.4 14.5 0 17M12 3.5c-2.4 2.5-2.4 14.5 0 17"/>
+      </svg>
+      <span>四六级</span>
+    </div>
+    <div class="tab" data-page="fit">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6.5 6.5v11M17.5 6.5v11M4 9.5v5M20 9.5v5M6.5 12h11"/>
+      </svg>
+      <span>体测</span>
+    </div>
+    <div class="tab" data-page="me">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+        <circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.3-6 7.5-6s7.5 2.4 7.5 6"/>
+      </svg>
+      <span>我的</span>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="loading">
+  <div class="loader"></div>
+  <div class="load-text" id="loadText">正在加载…</div>
+</div>
+
+<!-- 课程详情 -->
+<div id="course" class="hidden">
+  <div class="course-mask" id="courseMask"></div>
+  <div class="course-sheet" id="courseSheet"></div>
+</div>
+
+<!-- 捕获记录（诊断） -->
+<div id="diag" class="hidden">
+  <div class="diag-head">
+    <span class="diag-title">已捕获的请求</span>
+    <span class="diag-close" id="diagClose">关闭</span>
+  </div>
+  <div class="diag-body" id="diagBody"></div>
+</div>
+
+<!-- 协议 -->
+<div id="terms" class="hidden">
+  <div class="diag-head">
+    <span class="diag-title">用户协议与隐私说明</span>
+    <span class="diag-close" id="termsClose">关闭</span>
+  </div>
+  <div class="diag-body terms-body" id="termsBody"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
