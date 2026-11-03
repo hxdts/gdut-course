@@ -264,7 +264,7 @@ input {
   padding: 11px 0; border-bottom: 1px solid var(--line);
 }
 .course-row:last-child { border-bottom: none; }
-.course-row .nm { flex: 1; font-size: calc(14px * var(--fs, 1) * var(--fs-week, 1)); }
+.course-row .nm { flex: 1; font-size: calc(14px * var(--fs, 1)); }
 .course-row .meta { font-size: calc(11px * var(--fs, 1)); color: var(--sub); margin-top: 2px; }
 .score-pill {
   font-size: calc(14px * var(--fs, 1)); font-weight: 700; min-width: 42px; text-align: right;
@@ -1070,4 +1070,16 @@ html, body {
 }
 .ttfs-thumb.dragging {
   transform: translate(-50%, -50%) scale(1.12) !important;
+}
+
+
+/* ===== 课表改为整屏铺满 + 左右滑动切周 ===== */
+.tt-scroll {
+  overflow-x: hidden !important;
+  touch-action: pan-y;               /* 水平手势交给切周逻辑，垂直留给滚动 */
+}
+.timetable {
+  grid-template-columns: 26px repeat(7, 1fr) !important;
+  width: 100% !important;
+  gap: 3px !important;
 }
