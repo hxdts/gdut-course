@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 下载最新版
+    url: https://github.com/hxdts/gdut-course-release
+    about: 安装包和版本信息都在这里
+  - name: 使用说明
+    url: https://github.com/hxdts/gdut-course/blob/main/README.md
+    about: 功能、常见问题、怎么更新
