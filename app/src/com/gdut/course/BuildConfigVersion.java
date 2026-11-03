@@ -2,12 +2,13 @@ package com.gdut.course;
 
 /** 版本号常量（与 AndroidManifest 的 versionCode 保持一致）。 */
 public final class BuildConfigVersion {
-    public static final int CODE = 118;
-    public static final String NAME = "12.7";
+    public static final int CODE = 119;
+    public static final String NAME = "12.8";
 
     private BuildConfigVersion() {
     }
 }
+
 
 
 
