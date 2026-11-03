@@ -2554,18 +2554,35 @@
       var pw = state.pageW || 1;
       var p = sc.scrollLeft;
       var vp = sc.clientWidth;
-      // 本周页的范围是 [pw, 2*pw)
-      // 左边界：滑到上一周区域超过一半 → 上一周
-      if (p < pw * 0.55) {
-        goWeek(-1);
+      var leftEdge = pw;              // 本周页开头
+      var rightEdge = 2 * pw - vp;    // 本周页滚到头的位置
+
+      // 已经滑进「上一周」区域
+      if (p < leftEdge - 1) {
+        if (p < leftEdge - pw * 0.22) {
+          goWeek(-1);
+        } else {
+          // 没越过阈值：平滑回弹到本周开头
+          smoothScroll(sc, leftEdge);
+        }
         return;
       }
-      // 右边界：滑进下一周区域超过一半 → 下一周
-      // 本周页最右能滚到 2*pw - vp
-      var rightEdge = 2 * pw - vp;
-      if (p > rightEdge + pw * 0.45) {
-        goWeek(1);
+
+      // 已经滑进「下一周」区域
+      if (p > rightEdge + 1) {
+        if (p > rightEdge + pw * 0.22) {
+          goWeek(1);
+        } else {
+          smoothScroll(sc, rightEdge);
+        }
       }
+    }
+
+    function smoothScroll(el, left) {
+      if (el.scrollTo) {
+        try { el.scrollTo({ left: left, behavior: 'smooth' }); return; } catch (e) {}
+      }
+      el.scrollLeft = left;
     }
   }
 
@@ -2837,6 +2854,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
