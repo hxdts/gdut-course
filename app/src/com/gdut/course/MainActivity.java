@@ -314,17 +314,17 @@ public class MainActivity extends android.app.Activity {
         return sp;
     }
 
-    /** 彻底清除登录态：Cookie、localStorage、WebView 缓存与表单。 */
+    /**
+     * 清会话：只清 cookie 和页面缓存。
+     * 绝对不要调 WebStorage.deleteAllData()——那会连 localStorage 一起清掉，
+     * 用户的主题、壁纸、课程配色、记住的密码都会丢。
+     */
     public void clearAllSession() {
         runOnUiThread(new Runnable() {
             public void run() {
                 try {
                     CookieManager.getInstance().removeAllCookies(null);
                     CookieManager.getInstance().flush();
-                } catch (Throwable ignored) {
-                }
-                try {
-                    android.webkit.WebStorage.getInstance().deleteAllData();
                 } catch (Throwable ignored) {
                 }
                 try {
