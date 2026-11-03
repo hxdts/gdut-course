@@ -358,7 +358,7 @@
           } else {
             var txt = (r && r.message) || '登录失败';
             if (r && r.debug) txt += '\n\n诊断：' + r.debug;
-            txt += '\n\n若一直失败，点右下角「网页登录」，在学校页面里登录一次即可。';
+            txt += '\n\n请确认学号密码正确；若学校要求验证码，请等一会儿再试。';
             showLoginMsg(txt, 'err');
           }
           btn.disabled = false;
@@ -1750,7 +1750,7 @@
     '<p>2. <b>密码只保存在你手机本地</b>：勾选「记住密码」后会存进应用私有存储，用于下次自动登录；' +
     '不勾选则不保存。保存的密码不会上传到除学校统一认证以外的任何地方。' +
     '登录成功后的会话凭证（Cookie）同样保存在本机，用于保持登录状态。' +
-    '点「退出登录」会清除会话和保存的密码。</p>' +
+    '点「退出登录」只清除会话，保存的账号密码会保留，下次打开仍可自动登录。</p>' +
     '<p>3. 课表会整学期缓存在你本机，用于断网时查看；主题、壁纸路径、课程配色等设置也会备份到应用私有存储。' +
     '这些数据都只在你手机上。</p>' +
     '<p>4. 本应用不含任何统计或广告 SDK，不收集设备信息、位置、通讯录等任何内容。</p>' +
@@ -2599,11 +2599,6 @@
   $('#pwd').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
   $('#cap').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
 
-  $('#btnWebLogin').addEventListener('click', function () {
-    call('browse', { url: 'https://jxfw.gdut.edu.cn/new/' })
-      .catch(function () { toast('无法打开网页登录'); });
-  });
-
   $$('.tab').forEach(function (t) {
     t.addEventListener('click', function () { switchPage(t.dataset.page); });
   });
@@ -3242,23 +3237,18 @@
       } else {
         if (s && s.sid) $('#sid').value = s.sid;
         setTimeout(autoCheckUpdate, 900);
-        // 没有有效会话时，用记住的密码自动登录
+        // 没有有效会话时：无条件恢复协议勾选，再用记住的密码自动登录
         setTimeout(function () {
-          if (!autoLogin()) {
-            // 没有记住密码：如果之前同意过协议，恢复勾选状态
-            try {
-              if (localStorage.getItem('agreed') === '1') {
-                agreed = true;
-                var row = $('#agreeRow');
-                if (row) row.classList.add('on');
-              }
-            } catch (e) {}
-          }
+          try {
+            if (localStorage.getItem('agreed') === '1') {
+              agreed = true;
+              var rowA = $('#agreeRow');
+              if (rowA) rowA.classList.add('on');
+            }
+          } catch (e) {}
+          autoLogin();
         }, 400);
       }
-    }).catch(function () {
-      setTimeout(autoCheckUpdate, 900);
-      setTimeout(function () { autoLogin(); }, 400);
     });
   }
 
@@ -3400,6 +3390,8 @@
   bindLoginCheckboxes();
   boot();
 })();
+
+
 
 
 
