@@ -767,6 +767,7 @@
   function reLoginAndRetry(sid, pwd) {
     if (state.__reLogging) return;
     state.__reLogging = true;
+    toast('登录已过期，正在自动重新登录…');
     function retry() {
       setTimeout(function () {
         state.__reLogging = false;
@@ -3390,6 +3391,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
