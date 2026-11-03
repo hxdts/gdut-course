@@ -166,21 +166,44 @@
     } catch (e) {}
     var box = $('#rememberBox');
     if (box) box.classList.toggle('on', rememberPwd);
-    var row = $('#rememberRow');
-    if (row) {
-      row.addEventListener('click', function () {
+    // 点击绑定走 bindLoginCheckboxes 的 document 委托，不依赖启动时序
+  }
+
+  /** 登录页两个勾选框：document 级委托，页面一加载就生效 */
+  function bindLoginCheckboxes() {
+    if (window.__cbBound) return;
+    window.__cbBound = true;
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+
+      var ag = t.closest('#agreeRow');
+      if (ag) {
+        if (t.id === 'lnkTerms') {
+          var tm = $('#terms');
+          if (tm) tm.classList.remove('hidden');
+          return;
+        }
+        agreed = !agreed;
+        ag.classList.toggle('on', agreed);
+        try { localStorage.setItem('agreed', agreed ? '1' : '0'); } catch (err) {}
+        return;
+      }
+
+      var rm = t.closest('#rememberRow');
+      if (rm) {
         rememberPwd = !rememberPwd;
-        try { localStorage.setItem('rememberPwd', rememberPwd ? '1' : '0'); } catch (e) {}
-        var b = $('#rememberBox');
-        if (b) b.classList.toggle('on', rememberPwd);
+        var bx = $('#rememberBox');
+        if (bx) bx.classList.toggle('on', rememberPwd);
+        try { localStorage.setItem('rememberPwd', rememberPwd ? '1' : '0'); } catch (err) {}
         if (!rememberPwd) {
           try {
             localStorage.removeItem('savedSid');
             localStorage.removeItem('savedPwd');
-          } catch (e) {}
+          } catch (err) {}
         }
-      });
-    }
+      }
+    });
   }
 
   function saveLogin(sid, pwd) {
@@ -1568,19 +1591,16 @@
     '学校系统改版可能导致部分功能暂时失效，届时请等待更新。</p>';
 
   function initTerms() {
-    var row = $('#agreeRow');
-    row.addEventListener('click', function (e) {
-      if (e.target && e.target.id === 'lnkTerms') {
-        $('#terms').classList.remove('hidden');
-        return;
-      }
-      agreed = !agreed;
-      row.classList.toggle('on', agreed);
-    });
-    $('#termsClose').addEventListener('click', function () {
-      $('#terms').classList.add('hidden');
-    });
-    $('#termsBody').innerHTML = TERMS_HTML;
+    // 勾选逻辑统一走 bindLoginCheckboxes 的 document 委托（避免重复绑定导致切两次）
+    var tc = $('#termsClose');
+    if (tc) {
+      tc.addEventListener('click', function () {
+        var tm = $('#terms');
+        if (tm) tm.classList.add('hidden');
+      });
+    }
+    var tb = $('#termsBody');
+    if (tb) tb.innerHTML = TERMS_HTML;
   }
 
   /* ================= 诊断 ================= */
@@ -2843,8 +2863,12 @@
     $('#meSid').textContent = state.sid;
   }
 
+  bindLoginCheckboxes();
   boot();
 })();
+
+
+
 
 
 
