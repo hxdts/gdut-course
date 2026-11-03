@@ -787,6 +787,7 @@
 
     var dir = w > (state.week || 1) ? 1 : -1;
     state.lastDir = dir;   // 渲染时用这个方向做 DOM 轮转（只重建一页）
+    state.week = w;        // 关键：少了这行的话，切周只换了数据不换周次
 
     // 课表已整学期缓存在本地：有缓存就直接用，不走网络（换周瞬间完成）
     var cached = loadTtCache(state.term, w);
@@ -2696,11 +2697,15 @@
         var dt = b.t - a.t;
         if (dt > 0) vel = (b.x - a.x) / dt;
       }
-      var FLING = 0.35;   // 约 350px/s，轻轻一甩就换
+      var FLING = 0.22;   // 约 220px/s，轻轻一甩就换
+
+      var FLING_FAST = 0.5;   // 500px/s 以上：快速一甩，以最后一次动作为准，任何位置都换页
+      if (vel < -FLING_FAST) { slideThenSwap(pw * 2, 1, DUR); return; }
+      if (vel > FLING_FAST) { slideThenSwap(0, -1, DUR); return; }
 
       // 只要滑出本周页范围，就必须给出结论：换页 或 回弹到边界（边界正好能看到周六日）
       if (p < leftEdge - 1) {
-        if (p < leftEdge - pw * 0.10 || vel > FLING) {
+        if (p < leftEdge - pw * 0.06 || vel > FLING) {
           slideThenSwap(0, -1, DUR);
         } else {
           ttSetPos(leftEdge, true, 300);
@@ -2708,7 +2713,7 @@
         return;
       }
       if (p > rightEdge + 1) {
-        if (p > rightEdge + pw * 0.10 || vel < -FLING) {
+        if (p > rightEdge + pw * 0.06 || vel < -FLING) {
           slideThenSwap(pw * 2, 1, DUR);
         } else {
           ttSetPos(rightEdge, true, 300);
@@ -3054,6 +3059,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
