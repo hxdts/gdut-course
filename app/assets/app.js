@@ -2045,7 +2045,16 @@
     if (el) el.innerHTML = html;
   }
 
+  function updateWallTools() {
+    var el = $('#wallTools');
+    if (!el) return;
+    var has = false;
+    try { has = !!localStorage.getItem('wallpaper'); } catch (e) {}
+    el.style.display = has ? 'flex' : 'none';
+  }
+
   function applyWallpaper(path) {
+    updateWallTools();
     var wp = $('#wp');
     var blur = $('#wpBlur');
     var img = $('#wpImg');
@@ -2110,7 +2119,8 @@
   function initAppearance() {
     try {
       var w = localStorage.getItem('wallpaper');
-      if (w) applyWallpaper(w);
+      // 无论有没有壁纸都走一遍，保证"壁纸工具条"的显示状态正确
+      applyWallpaper(w || '');
       var th = localStorage.getItem('theme');
       if (th) applyTheme(th);
     } catch (e) {}
@@ -2248,12 +2258,32 @@
     doCheckUpdate();
   });
 
-  $('#rowUpdateFile').addEventListener('click', function () {
-    call('pickApk').catch(function () {
-      toast('无法打开文件选择器');
+  var wallTools = $('#wallTools');
+  if (wallTools) {
+    wallTools.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var tool = t.closest('.wall-tool');
+      if (!tool) return;
+      var op = tool.getAttribute('data-op');
+      if (!op) return;
+      if (!localStorage.getItem('wallpaper')) {
+        toast('先设置一张壁纸');
+        return;
+      }
+      call('transformWallpaper', { op: op }).then(function (r) {
+        if (r && r.path) {
+          try { localStorage.setItem('wallpaper', r.path); } catch (err) {}
+          applyWallpaper(r.path);
+          toast('已' + ({ rotate: '旋转', flipH: '左右镜像', flipV: '上下镜像', crop: '裁剪' }[op] || '处理'));
+        } else {
+          toast('处理失败');
+        }
+      }).catch(function () {
+        toast('处理失败');
+      });
     });
-  });
-
+  }
   $('#rowWallpaper').addEventListener('click', function () {
     call('pickWallpaper').catch(function () {
       toast('无法打开相册');
@@ -2516,6 +2546,9 @@
 
   boot();
 })();
+
+
+
 
 
 
