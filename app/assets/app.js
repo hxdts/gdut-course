@@ -382,7 +382,7 @@
   /* ================= 进入主界面 ================= */
   function enterApp() {
     $('#login').classList.add('hidden');
-    $('#app').classList.remove('hidden');
+    var bm = document.getElementById('bootMask'); if (bm) bm.remove();
     $('#meSid').textContent = state.sid || '—';
     if ($('#whoLine')) $('#whoLine').textContent = (state.sid ? '学号 ' + state.sid + ' · ' : '') + '已连接教务系统';
     switchPage('tt');
@@ -3282,6 +3282,7 @@
       $('#login').classList.add('hidden');
       if ($('#whoLine')) $('#whoLine').textContent = '浏览器预览模式';
       if (location.search.indexOf('mock') >= 0) fillMock();
+      var bmM = document.getElementById('bootMask'); if (bmM) bmM.remove();
       renderTimetable();
       renderGrades();
       renderCet();
@@ -3295,9 +3296,9 @@
         enterApp();
         setTimeout(autoCheckUpdate, 900);
       } else {
+        var bm2 = document.getElementById('bootMask'); if (bm2) bm2.remove();
+        $('#login').classList.remove('hidden');
         if (s && s.sid) $('#sid').value = s.sid;
-        setTimeout(autoCheckUpdate, 900);
-        // 没有有效会话时：无条件恢复协议勾选，再用记住的密码自动登录
         setTimeout(function () {
           try {
             if (localStorage.getItem('agreed') === '1') {
@@ -3309,6 +3310,10 @@
           autoLogin();
         }, 400);
       }
+    }).catch(function () {
+      var bm3 = document.getElementById('bootMask'); if (bm3) bm3.remove();
+      $('#login').classList.remove('hidden');
+      setTimeout(function () { autoLogin(); }, 300);
     });
   }
 
