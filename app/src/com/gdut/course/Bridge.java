@@ -294,6 +294,13 @@ public class Bridge {
             return ok(o.toString());
         }
 
+        if ("transformWallpaper".equals(action)) {
+            String op = p.optString("op", "");
+            String newPath = act.transformWallpaper(op);
+            JSONObject o = new JSONObject();
+            o.put("path", newPath == null ? "" : newPath);
+            return ok(o.toString());
+        }
         if ("pickWallpaper".equals(action)) {
             act.pickWallpaper();
             return ok("{\"ok\":true}");
@@ -331,4 +338,5 @@ public class Bridge {
         return "";
     }
 }
+
 
