@@ -868,11 +868,9 @@
 
   /** 课表滑动动画：下一周从右进，上一周从左进 */
   function animateTimetable(dir) {
-    var el = document.querySelector('.tt-scroll');
-    if (!el) return;
-    el.classList.remove('anim-left', 'anim-right', 'anim-fade');
-    void el.offsetWidth; // 强制重排以重启动画
-    el.classList.add(dir > 0 ? 'anim-right' : 'anim-left');
+    // 换页动画统一由 #ttStrip 的 CSS transform 过渡完成。
+    // 这里原本会加 .anim-left/.anim-right（opacity .35 → 1 的淡入），
+    // 与翻页位移叠加后就表现为"换页完闪一下"，所以不再使用。
   }
 
   /** 上一周 / 下一周 */
@@ -1408,7 +1406,6 @@
       renderCourseList(cs);
       $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
       if (typeof ttSetPos === 'function') ttSetPos(pageW, false);
-      initTTSwipe();
       return;
     }
 
@@ -2645,12 +2642,12 @@
       var DUR = 1000;   // 换页动画时长（跟 ttSetPos 的 transition 一致）
 
       // 越过相邻周 18%：先把整页滑完（看得见的换页动画），动画结束后再换数据
-      if (p < leftEdge - pw * 0.32) {
+      if (p < leftEdge - pw * 0.28) {
         ttSetPos(0, true);
         setTimeout(function () { goWeek(-1); }, DUR);
         return;
       }
-      if (p > rightEdge + pw * 0.32) {
+      if (p > rightEdge + pw * 0.28) {
         ttSetPos(pw * 2, true);
         setTimeout(function () { goWeek(1); }, DUR);
         return;
@@ -2948,6 +2945,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
