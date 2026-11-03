@@ -237,6 +237,13 @@
 
   /** 用记住的密码自动登录，返回是否发起了自动登录 */
   function autoLogin() {
+    // 主动退出登录后，本次启动不自动登录
+    try {
+      if (localStorage.getItem('noAutoLogin') === '1') {
+        localStorage.removeItem('noAutoLogin');
+        return false;
+      }
+    } catch (e) {}
     var c = getSavedLogin();
     if (!c.sid || !c.pwd) return false;
     var sidEl = $('#sid');
@@ -1261,7 +1268,7 @@
     '#0f172a', '#334155'
   ];
   /** 把某一周的课程渲染成完整网格（周一到周日 7 列）；courses 为空时渲染空网格 */
-  function buildPane(courses) {
+  function buildPane(courses, colW) {
     var days = ['一', '二', '三', '四', '五', '六', '日'];
     var cs = courses || [];
 
@@ -1284,7 +1291,8 @@
     });
 
     var todayStr = todayDateStr();
-    var html = '<div class="timetable">';
+    var css = 'width:' + (26 + colW * 7 + 3 * 7) + 'px;grid-template-columns:26px repeat(7,' + colW + 'px)';
+    var html = '<div class="timetable" style="' + css + '">';
     html += '<div class="tt-head" style="grid-row:1;grid-column:1"></div>';
     for (var d = 1; d <= 7; d++) {
       var dd = dayDate(d);
@@ -1338,16 +1346,10 @@
       $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
       return;
     }
-    // 三页轨道：上一周 / 本周 / 下一周，滑动时能看到相邻周的真实课表
-    var curW = state.week || 1;
-    var prevC = coursesOfWeek(curW - 1);
-    var nextC = coursesOfWeek(curW + 1);
-    var html = '<div class="tt-viewport" id="ttViewport">' +
-      '<div class="tt-track" id="ttTrack">' +
-      '<div class="tt-slab">' + buildPane(prevC) + '</div>' +
-      '<div class="tt-slab">' + buildPane(cs) + '</div>' +
-      '<div class="tt-slab">' + buildPane(nextC) + '</div>' +
-      '</div></div>';
+    // 一屏显示 5 天（周一到周五），横向滑动可看周六周日，仍是同一张课表
+    var vpW = document.documentElement.clientWidth || 360;
+    var colW = Math.max(56, Math.floor((vpW - 56) / 5));
+    var html = '<div class="tt-scroll" id="ttScroll">' + buildPane(cs, colW) + '</div>';
     var days = ['一', '二', '三', '四', '五', '六', '日'];
     var byName = {};
     cs.forEach(function (c) { (byName[c.name] = byName[c.name] || []).push(c); });
@@ -1371,9 +1373,8 @@
     wrap.innerHTML = html;
     $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
 
-    // 每次渲染后复位位移并重新绑定滑动
-    resetSwipeOffset();
-    initTTSwipe();
+    // 今天如果在周末，自动滚到右边显示周六日
+    scrollToToday();
 
     // 点课程行右侧的色点 → 打开该课颜色选择器
     if (!wrap.__ccBound) {
@@ -2465,6 +2466,12 @@
     $('#diag').classList.add('hidden');
   });
   $('#rowClear').addEventListener('click', function () {
+    // 主动退出登录：阻止本次自动登录，并清掉记住的账号密码
+    try {
+      localStorage.setItem('noAutoLogin', '1');
+      localStorage.removeItem('savedSid');
+      localStorage.removeItem('savedPwd');
+    } catch (e) {}
     call('logout').then(function () {
       location.reload();
     }).catch(function () { location.reload(); });
@@ -2510,101 +2517,21 @@
       applyWallFit(fit);
     });
   }
-  /* ================= 课表三页轨道滑动切周 ================= */
-  var ttSwipe = { active: false, startX: 0, dx: 0, w: 1 };
+  /* 课表改为原生横向滚动：一屏 5 天，滑到右边看周末 */
+  function initTTSwipe() { /* 不再拦截手势，交给浏览器原生滚动 */ }
 
-  function trackOffset(px, animate) {
-    var track = $('#ttTrack');
-    if (!track) return;
-    track.style.transition = animate ? 'transform .28s cubic-bezier(.22,.68,.36,1)' : 'none';
-    // 基础位置 -33.3333%（居中页），再加手指位移
-    track.style.transform = 'translateX(calc(-33.3333% + ' + px + 'px))';
-  }
+  function resetSwipeOffset() { /* 无需复位 */ }
 
-  function initTTSwipe() {
-    var vp = $('#ttViewport');
-    var track = $('#ttTrack');
-    if (!vp || !track) return;
-    if (vp.__swipeBound) {
-      // 已绑定过，只需复位到中间页
-      trackOffset(0, false);
-      return;
+  /** 若今天在周末，首次渲染后把课表滚到右侧，直接能看到周六日 */
+  function scrollToToday() {
+    var el = document.querySelector('.tt-scroll');
+    if (!el) return;
+    var d = new Date().getDay();   // 0=周日 6=周六
+    if (d === 0 || d === 6) {
+      el.scrollLeft = el.scrollWidth;
+    } else {
+      el.scrollLeft = 0;
     }
-    vp.__swipeBound = true;
-
-    function onStart(x) {
-      ttSwipe.w = vp.clientWidth || 1;
-      ttSwipe.startX = x;
-      ttSwipe.dx = 0;
-      ttSwipe.active = true;
-      trackOffset(0, false);
-    }
-
-    function onMove(x) {
-      if (!ttSwipe.active) return;
-      var dx = x - ttSwipe.startX;
-      var cur = state.week || 1;
-      var total = state.totalWeeks || 22;
-      if ((cur <= 1 && dx > 0) || (cur >= total && dx < 0)) dx *= 0.3;
-      ttSwipe.dx = dx;
-      trackOffset(dx, false);
-    }
-
-    function onEnd() {
-      if (!ttSwipe.active) return;
-      ttSwipe.active = false;
-      var dx = ttSwipe.dx;
-      var cur = state.week || 1;
-      var total = state.totalWeeks || 22;
-      var th = Math.max(56, ttSwipe.w * 0.3);
-
-      if (dx <= -th && cur < total) {
-        track.style.transition = 'transform .2s ease';
-        track.style.transform = 'translateX(-66.6666%)';
-        setTimeout(function () { goToWeek(cur + 1); }, 150);
-      } else if (dx >= th && cur > 1) {
-        track.style.transition = 'transform .2s ease';
-        track.style.transform = 'translateX(0%)';
-        setTimeout(function () { goToWeek(cur - 1); }, 150);
-      } else {
-        trackOffset(0, true);
-      }
-      ttSwipe.dx = 0;
-    }
-
-    vp.addEventListener('touchstart', function (e) {
-      if (e.touches.length !== 1) return;
-      onStart(e.touches[0].clientX);
-    }, { passive: true });
-    vp.addEventListener('touchmove', function (e) {
-      if (e.touches.length !== 1) return;
-      onMove(e.touches[0].clientX);
-    }, { passive: true });
-    vp.addEventListener('touchend', onEnd, { passive: true });
-    vp.addEventListener('touchcancel', onEnd, { passive: true });
-
-    var mDown = false;
-    vp.addEventListener('mousedown', function (e) {
-      if (e.button !== 0) return;
-      mDown = true;
-      onStart(e.clientX);
-    });
-    document.addEventListener('mousemove', function (e) {
-      if (!mDown) return;
-      onMove(e.clientX);
-    });
-    document.addEventListener('mouseup', function () {
-      if (!mDown) return;
-      mDown = false;
-      onEnd();
-    });
-  }
-
-  function resetSwipeOffset() {
-    var track = $('#ttTrack');
-    if (!track) return;
-    track.style.transition = 'none';
-    track.style.transform = 'translateX(-33.3333%)';
   }
   $('#rowWallpaper').addEventListener('click', function () {
     call('pickWallpaper').catch(function () {
@@ -2873,6 +2800,10 @@
   bindLoginCheckboxes();
   boot();
 })();
+
+
+
+
 
 
 
