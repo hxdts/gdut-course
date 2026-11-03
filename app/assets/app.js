@@ -1356,7 +1356,7 @@
     }
     card.innerHTML = html2;
   }
-  function buildPane(courses, days) {
+  function buildPane(courses, dayList) {
     var days = ['一', '二', '三', '四', '五', '六', '日'];
     var cs = courses || [];
 
@@ -1383,7 +1383,7 @@
     var html = '<div class="timetable" style="' + css + '">';
     html += '<div class="tt-head" style="grid-row:1;grid-column:1"></div>';
     for (var d = 1; d <= 7; d++) {
-      var dd = dayDate(d, days);
+      var dd = dayDate(d, dayList);
       var isToday = dd && dd === todayStr;
       html += '<div class="tt-head" style="grid-row:1;grid-column:' + (d + 1) + '">' + days[d - 1] +
         (dd ? '<span class="tt-date' + (isToday ? ' today' : '') + '">' + dd + '</span>' : '') +
@@ -2789,7 +2789,6 @@
     }
 
     function end() {
-      // 幂等：sc 和 window 各挂了一个 pointerup，同一手势只会处理一次
       if (!ttSwipe.active || ttSwipe.ended) return;
       ttSwipe.ended = true;
       ttSwipe.active = false;
@@ -2797,22 +2796,42 @@
       var e = edges();
       var p = ttSwipe.pos;
       var vel = velocity();
-      var v = vel.v;                    // px/ms，向左滑为负
+      var v = vel.v;
       var dxAbs = Math.abs(vel.dx);
-      // 本次手势总位移（速度算不准时的兜底依据）
-      var dd = Math.abs(p - ttSwipe.startPos);
-      var movedRight = p > ttSwipe.startPos;   // pos 变大 = 看更靠后的周
-      // 2) 越过端点
-      if (p < e.left) {
-        if (e.left - p >= TT_EDGE_PX || (v > TT_FLING_V && dxAbs >= TT_FLING_MIN_DX)) swap(-1); else snap(e.left);
+      var cur = state.week || 1;
+      var total = state.totalWeeks || 22;
+      var canPrev = cur > 1;
+      var canNext = cur < total;
+
+      // 向右滑（看更靠后的周）
+      if (p > e.right) {
+        var overR = p - e.right;
+        var fastR = (v < -TT_FLING_V && dxAbs >= TT_FLING_MIN_DX);
+        if (!canNext) { snap(e.right); return; }   // 已经是最后一周，只吸附，避免卡死
+        if (overR >= TT_EDGE_PX || fastR) {
+          // 效果叠加：越过 1 页就跨 1 周，越过 2 页跨 2 周……最多 4 周
+          var pagesR = Math.max(1, Math.min(4, Math.floor(overR / e.pw) + 1));
+          swap(1, pagesR);
+        } else {
+          snap(e.right);
+        }
         return;
       }
-      if (p > e.right) {
-        if (p - e.right >= TT_EDGE_PX || (v < -TT_FLING_V && dxAbs >= TT_FLING_MIN_DX)) swap(1); else snap(e.right);
+      // 向左滑（看更靠前的周）
+      if (p < e.left) {
+        var overL = e.left - p;
+        var fastL = (v > TT_FLING_V && dxAbs >= TT_FLING_MIN_DX);
+        if (!canPrev) { snap(e.left); return; }
+        if (overL >= TT_EDGE_PX || fastL) {
+          var pagesL = Math.max(1, Math.min(4, Math.floor(overL / e.pw) + 1));
+          swap(-1, pagesL);
+        } else {
+          snap(e.left);
+        }
         return;
       }
 
-      // 3) 在两端之间：吸附到更近的一端（左端=周一到周五，右端=周三到周日）
+      // 本周范围内：吸附到更近的端点
       var mid = (e.left + e.right) / 2;
       snap(p <= mid ? e.left : e.right);
     }
@@ -2834,7 +2853,8 @@
     }
 
     /** 滑到相邻页，动画真正结束后再换数据 */
-    function swap(dir) {
+    function swap(dir, pages) {
+      pages = pages || 1;
       var e = edges();
       var target = dir > 0 ? e.pw * 2 : 0;
       var done = false;
@@ -2848,13 +2868,12 @@
         if (done) return;
         done = true;
         cleanup();
-        // 换页完成
-        goWeek(dir);
+        // 效果叠加：一次滑动可以跨多周
+        goToWeek((state.week || 1) + dir * pages);
       }
       function onTE(ev) {
         if (!ev || ev.propertyName === 'transform') finish();
       }
-      // 用户又滑了 → 取消这次换页，停在当前位置
       ttSwipe.cancelSwap = function () { done = true; cleanup(); };
       strip.addEventListener('transitionend', onTE);
       ttSetPos(target, true, TT_DUR_SWAP);
@@ -3278,6 +3297,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
