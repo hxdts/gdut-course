@@ -2631,11 +2631,9 @@
     $('#diag').classList.add('hidden');
   });
   $('#rowClear').addEventListener('click', function () {
-    // 主动退出登录：阻止本次自动登录，并清掉记住的账号密码
+    // 退出登录：只清会话，主题/壁纸/课程配色/记住的密码全部保留
     try {
-      localStorage.setItem('noAutoLogin', '1');
-      localStorage.removeItem('savedSid');
-      localStorage.removeItem('savedPwd');
+      localStorage.setItem('noAutoLogin', '1');   // 本次重载不自动登录
     } catch (e) {}
     call('logout').then(function () {
       location.reload();
