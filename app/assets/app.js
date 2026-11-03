@@ -239,23 +239,25 @@
 
   /** 用记住的密码自动登录，返回是否发起了自动登录 */
   function autoLogin() {
-    // 主动退出登录后，本次启动不自动登录
-    try {
-      if (localStorage.getItem('noAutoLogin') === '1') {
-        localStorage.removeItem('noAutoLogin');
-        return false;
-      }
-    } catch (e) {}
     var c = getSavedLogin();
+    var skip = false;
+    try { skip = localStorage.getItem('noAutoLogin') === '1'; } catch (e) {}
+
+    // 不管这次要不要自动登录，都先把账号密码填好、协议勾上
+    if (c.sid || c.pwd) {
+      var sidEl = $('#sid');
+      var pwdEl = $('#pwd');
+      if (sidEl && c.sid) sidEl.value = c.sid;
+      if (pwdEl && c.pwd) pwdEl.value = c.pwd;
+      agreed = true;
+      try { localStorage.setItem('agreed', '1'); } catch (e) {}
+      var row = $('#agreeRow');
+      if (row) row.classList.add('on');
+    }
+
+    // 主动退出登录过：只填好，等用户自己点「登录」
+    if (skip) return false;
     if (!c.sid || !c.pwd) return false;
-    var sidEl = $('#sid');
-    var pwdEl = $('#pwd');
-    if (sidEl) sidEl.value = c.sid;
-    if (pwdEl) pwdEl.value = c.pwd;
-    agreed = true;
-    try { localStorage.setItem('agreed', '1'); } catch (e) {}
-    var row = $('#agreeRow');
-    if (row) row.classList.add('on');
     doLogin();
     return true;
   }
@@ -348,6 +350,7 @@
         if (r && r.ok) {
           state.sid = sid;
           saveLogin(sid, pwd);
+    try { localStorage.removeItem('noAutoLogin'); } catch (e) {}   // 手动登录成功，恢复自动登录
           backupPrefs();
           showLoginMsg('登录成功，正在载入教务系统…', 'info');
           enterApp();
@@ -2638,7 +2641,7 @@
   $('#rowClear').addEventListener('click', function () {
     // 退出登录：只清会话，主题/壁纸/课程配色/记住的密码全部保留
     try {
-      localStorage.setItem('noAutoLogin', '1');   // 本次重载不自动登录
+      localStorage.setItem('noAutoLogin', '1');   // 退出登录：之后每次启动都只填好账号密码，等用户手动点登录
     } catch (e) {}
     call('logout').then(function () {
       location.reload();
@@ -3390,6 +3393,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
