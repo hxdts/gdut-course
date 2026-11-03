@@ -1107,18 +1107,8 @@ html, body {
   margin: 0;
   padding: 0;
 }
-.tt-pager {
-  display: flex;
-  width: 200%;
-  will-change: transform;
-}
-.tt-pane {
-  flex: 0 0 50%;
-  min-width: 0;
-}
-.tt-pane .timetable {
-  width: 100% !important;
-  gap: 3px !important;
+#ttViewport > div {
+  will-change: transform, opacity;
 }
 
 /* 页码圆点 */
@@ -1133,5 +1123,6 @@ html, body {
 }
 .tt-dots i.on { width: 16px; background: var(--blue); }
 body.dark-theme .tt-dots i { background: rgba(255,255,255,.25); }
+
 
 
