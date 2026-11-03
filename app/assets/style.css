@@ -1079,7 +1079,6 @@ html, body {
   touch-action: pan-y;               /* 水平手势交给切周逻辑，垂直留给滚动 */
 }
 .timetable {
-  grid-template-columns: 26px repeat(7, 1fr) !important;
   width: 100% !important;
   gap: 3px !important;
 }
@@ -1101,3 +1100,38 @@ html, body {
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
 }
+
+/* ===== 课表：工作日 / 周末 两页，跟手滑动 ===== */
+.tt-viewport {
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+.tt-pager {
+  display: flex;
+  width: 200%;
+  will-change: transform;
+}
+.tt-pane {
+  flex: 0 0 50%;
+  min-width: 0;
+}
+.tt-pane .timetable {
+  width: 100% !important;
+  gap: 3px !important;
+}
+
+/* 页码圆点 */
+.tt-dots {
+  display: flex; justify-content: center; gap: 6px;
+  padding: 10px 0 2px;
+}
+.tt-dots i {
+  width: 6px; height: 6px; border-radius: 3px;
+  background: #cfd6e4;
+  transition: width .22s, background .22s;
+}
+.tt-dots i.on { width: 16px; background: var(--blue); }
+body.dark-theme .tt-dots i { background: rgba(255,255,255,.25); }
+
+
