@@ -117,7 +117,7 @@ public class Cas {
 
             if (page.code >= 300 && page.code < 400) {
                 return Result.fail(0, "统一身份认证反复跳转（HTTP " + page.code
-                        + "），请点右下角「网页登录」");
+                        + "），请稍后重试或重启应用");
             }
             if (page.code != 200 || page.body == null || page.body.isEmpty()) {
                 return Result.fail(0, "无法连接统一身份认证（HTTP " + page.code + "）");
