@@ -1346,10 +1346,20 @@
       $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
       return;
     }
-    // 一屏显示 5 天（周一到周五），横向滑动可看周六周日，仍是同一张课表
+    // 连续时间线：上一周 | 本周 | 下一周 并排，横向滚动可以一路滑过去
     var vpW = document.documentElement.clientWidth || 360;
-    var colW = Math.max(56, Math.floor((vpW - 56) / 5));
-    var html = '<div class="tt-scroll" id="ttScroll">' + buildPane(cs, colW) + '</div>';
+    var colW = Math.max(50, Math.floor((vpW - 40) / 5));
+    var curW = state.week || 1;
+    var prevC = coursesOfWeek(curW - 1);
+    var nextC = coursesOfWeek(curW + 1);
+    var pageW = 26 + colW * 7 + 24;
+    state.pageW = pageW;
+    var html = '<div class="tt-scroll" id="ttScroll">' +
+      '<div class="tt-strip" style="width:' + (pageW * 3) + 'px">' +
+      '<div class="tt-week" style="width:' + pageW + 'px">' + buildPane(prevC, colW) + '</div>' +
+      '<div class="tt-week" style="width:' + pageW + 'px">' + buildPane(cs, colW) + '</div>' +
+      '<div class="tt-week" style="width:' + pageW + 'px">' + buildPane(nextC, colW) + '</div>' +
+      '</div></div>';
     var days = ['一', '二', '三', '四', '五', '六', '日'];
     var byName = {};
     cs.forEach(function (c) { (byName[c.name] = byName[c.name] || []).push(c); });
@@ -1373,8 +1383,8 @@
     wrap.innerHTML = html;
     $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
 
-    // 今天如果在周末，自动滚到右边显示周六日
-    scrollToToday();
+    // 每次重建后：复位并绑定滚动跨周
+    initTTSwipe();
 
     // 点课程行右侧的色点 → 打开该课颜色选择器
     if (!wrap.__ccBound) {
@@ -2517,77 +2527,49 @@
       applyWallFit(fit);
     });
   }
-  /* ================= 课表：一页一周；页内横滑看周末；滑到头继续滑则换周 ================= */
+  /* ================= 课表：三周连续条带，滚动跨周 ================= */
   function initTTSwipe() {
     var sc = $('#ttScroll');
-    if (!sc || sc.__bound) return;
+    if (!sc) return;
+
+    // 首次进入：居中到本周（中间页），若今天是周末则再往右偏
+    var pageW = state.pageW || 1;
+    if (!sc.__inited) {
+      sc.__inited = true;
+      var d = new Date().getDay();
+      var off = (d === 0 || d === 6) ? pageW - sc.clientWidth : 0;
+      sc.scrollLeft = pageW + Math.max(0, off);
+    }
+
+    if (sc.__bound) return;
     sc.__bound = true;
 
-    var startX = 0;
-    var fired = false;
-    var EDGE = 78;   // 到边界后再滑多少才换周
+    var timer = null;
+    sc.addEventListener('scroll', function () {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(onScrollEnd, 220);
+    });
 
-    function atLeft() { return sc.scrollLeft <= 2; }
-    function atRight() { return sc.scrollLeft + sc.clientWidth >= sc.scrollWidth - 2; }
-
-    function onStart(x) {
-      startX = x;
-      fired = false;
-    }
-
-    function onMove(x) {
-      if (fired) return;
-      var dx = x - startX;
-      // 已经滚到最右，还继续往左拉 → 下一周
-      if (atRight() && dx < -EDGE) {
-        fired = true;
-        goWeek(1);
+    function onScrollEnd() {
+      var pw = state.pageW || 1;
+      var p = sc.scrollLeft;
+      var vp = sc.clientWidth;
+      // 本周页的范围是 [pw, 2*pw)
+      // 左边界：滑到上一周区域超过一半 → 上一周
+      if (p < pw * 0.55) {
+        goWeek(-1);
         return;
       }
-      // 已经滚到最左，还继续往右拉 → 上一周
-      if (atLeft() && dx > EDGE) {
-        fired = true;
-        goWeek(-1);
+      // 右边界：滑进下一周区域超过一半 → 下一周
+      // 本周页最右能滚到 2*pw - vp
+      var rightEdge = 2 * pw - vp;
+      if (p > rightEdge + pw * 0.45) {
+        goWeek(1);
       }
     }
-
-    sc.addEventListener('touchstart', function (e) {
-      if (e.touches.length !== 1) return;
-      onStart(e.touches[0].clientX);
-    }, { passive: true });
-
-    sc.addEventListener('touchmove', function (e) {
-      if (e.touches.length !== 1) return;
-      onMove(e.touches[0].clientX);
-    }, { passive: true });
-
-    // 鼠标（预览/桌面）
-    var mDown = false;
-    sc.addEventListener('mousedown', function (e) {
-      if (e.button !== 0) return;
-      mDown = true;
-      onStart(e.clientX);
-    });
-    document.addEventListener('mousemove', function (e) {
-      if (!mDown) return;
-      onMove(e.clientX);
-    });
-    document.addEventListener('mouseup', function () { mDown = false; });
   }
 
-  function resetSwipeOffset() { /* 原生滚动，无需复位 */ }
-
-  /** 若今天在周末，首次渲染后把课表滚到右侧，直接能看到周六日 */
-  function scrollToToday() {
-    var el = document.querySelector('.tt-scroll');
-    if (!el) return;
-    var d = new Date().getDay();   // 0=周日 6=周六
-    if (d === 0 || d === 6) {
-      el.scrollLeft = el.scrollWidth;
-    } else {
-      el.scrollLeft = 0;
-    }
-  }
+  function resetSwipeOffset() { /* 由 renderTimetable 负责居中 */ }
   $('#rowWallpaper').addEventListener('click', function () {
     call('pickWallpaper').catch(function () {
       toast('无法打开相册');
@@ -2855,6 +2837,9 @@
   bindLoginCheckboxes();
   boot();
 })();
+
+
+
 
 
 
