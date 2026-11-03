@@ -787,7 +787,17 @@
 
     var dir = w > (state.week || 1) ? 1 : -1;
     state.week = w;
-    setWeekPending(true);
+
+    // 先用本地缓存立刻画出这一周，保证换周动画衔接上；网络结果回来再覆盖
+    var cached = loadTtCache(state.term, w);
+    if (cached && cached.courses) {
+      state.courses = cached.courses;
+      state.days = cached.days || [];
+      state.ttError = "";
+      renderTimetable();
+    } else {
+      setWeekPending(true);
+    }
 
     call('timetable', { term: state.term || '', week: w })
       .then(function (d) {
@@ -2537,7 +2547,7 @@
     var max = ttSwipe.pageW * 3 - ttSwipe.vpW;
     ttSwipe.pos = Math.max(0, Math.min(max, x));
     // 关键：动画交给 CSS transition，浏览器合成层执行，跟手且流畅
-    strip.style.transition = animate ? 'transform .38s cubic-bezier(.22,.68,.36,1)' : 'none';
+    strip.style.transition = animate ? 'transform .42s cubic-bezier(.25,.72,.3,1)' : 'none';
     strip.style.transform = 'translateX(' + (-ttSwipe.pos) + 'px)';
   }
 
@@ -2887,6 +2897,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
