@@ -382,7 +382,7 @@
   /* ================= 进入主界面 ================= */
   function enterApp() {
     $('#login').classList.add('hidden');
-    var bm = document.getElementById('bootMask'); if (bm) bm.remove();
+    window.__bootOk = true;
     $('#meSid').textContent = state.sid || '—';
     if ($('#whoLine')) $('#whoLine').textContent = (state.sid ? '学号 ' + state.sid + ' · ' : '') + '已连接教务系统';
     switchPage('tt');
@@ -3254,10 +3254,7 @@
       try {
         bootInner();
       } catch (e) {
-        var bm2 = document.getElementById('bootMask');
-        if (bm2) bm2.remove();
-        var lg2 = document.getElementById('login');
-        if (lg2) lg2.classList.remove('hidden');
+        window.__lastErr = 'bootInner: ' + (e && e.message);
       }
     }
     // 兜底：原生那边的设置备份如果没按时回调，2.5 秒后直接启动，
@@ -3267,12 +3264,11 @@
   }
 
   function bootInner() {
-    initTerms();
-    initAppearance();
-    renderDiagnostics();
-    initRemember();
-    initTTSwipe();
-
+    try { initTerms(); } catch (e) { window.__lastErr = 'initTerms: ' + e.message; }
+    try { initAppearance(); } catch (e) { window.__lastErr = 'initAppearance: ' + e.message; }
+    try { renderDiagnostics(); } catch (e) { window.__lastErr = 'renderDiagnostics: ' + e.message; }
+    try { initRemember(); } catch (e) { window.__lastErr = 'initRemember: ' + e.message; }
+    try { initTTSwipe(); } catch (e) { window.__lastErr = 'initTTSwipe: ' + e.message; }
     // 每 3 秒检查一次设置有无变化，有则备份到原生（更新后不丢）
     var lastPrefSig = '';
     setInterval(function () {
@@ -3292,7 +3288,7 @@
       $('#login').classList.add('hidden');
       if ($('#whoLine')) $('#whoLine').textContent = '浏览器预览模式';
       if (location.search.indexOf('mock') >= 0) fillMock();
-      var bmM = document.getElementById('bootMask'); if (bmM) bmM.remove();
+      
       renderTimetable();
       renderGrades();
       renderCet();
@@ -3306,7 +3302,7 @@
         enterApp();
         setTimeout(autoCheckUpdate, 900);
       } else {
-        var bm2 = document.getElementById('bootMask'); if (bm2) bm2.remove();
+        
         $('#login').classList.remove('hidden');
         if (s && s.sid) $('#sid').value = s.sid;
         setTimeout(function () {
@@ -3321,7 +3317,7 @@
         }, 400);
       }
     }).catch(function () {
-      var bm3 = document.getElementById('bootMask'); if (bm3) bm3.remove();
+      
       $('#login').classList.remove('hidden');
       setTimeout(function () { autoLogin(); }, 300);
     });
