@@ -1650,6 +1650,13 @@
 
   function initTtFontScale() {
     applyTtFs();
+    // 首次渲染时滑块可能还没宽度，布局稳定后再补算两次
+    setTimeout(function () { applyTtFs(); }, 60);
+    setTimeout(function () { applyTtFs(); }, 320);
+    window.addEventListener('resize', function () { applyTtFs(); });
+    window.addEventListener('orientationchange', function () {
+      setTimeout(function () { applyTtFs(); }, 260);
+    });
     var box = $('#ttFsList');
     if (box) {
       var dragging = false, dragKey = null, dragEl = null;
@@ -2061,6 +2068,39 @@
     if (el) el.innerHTML = html;
   }
 
+  /* ================= 壁纸屏幕适应 ================= */
+  function getWallFit() {
+    try { return localStorage.getItem('wallFit') || 'cover'; } catch (e) { return 'cover'; }
+  }
+
+  function applyWallFit(fit) {
+    try { localStorage.setItem('wallFit', fit); } catch (e) {}
+    var img = $('#wpImg');
+    if (img) {
+      img.style.backgroundSize = fit === 'contain' ? 'contain' : 'cover';
+      img.style.backgroundRepeat = 'no-repeat';
+      img.style.backgroundPosition = 'center';
+    }
+    renderWallFit();
+  }
+
+  function renderWallFit() {
+    var fit = getWallFit();
+    var row = $('#wallFitRow');
+    if (row) {
+      Array.prototype.forEach.call(row.children, function (el) {
+        el.classList.toggle('on', el.getAttribute('data-fit') === fit);
+      });
+    }
+    var lab = $('#wallFitVal');
+    if (lab) lab.textContent = fit === 'contain' ? '上下完整' : '左右铺满';
+    var block = $('#wallFitBlock');
+    if (block) {
+      var has = false;
+      try { has = !!localStorage.getItem('wallpaper'); } catch (e) {}
+      block.style.display = has ? 'block' : 'none';
+    }
+  }
   function updateWallTools() {
     var el = $('#wallTools');
     if (!el) return;
@@ -2081,13 +2121,21 @@
       if (img) img.style.backgroundImage = '';
       var meta = $('#wallMeta');
       if (meta) meta.textContent = '从相册选一张图片，自动模糊填充';
+      renderWallFit();
       return;
     }
     var u = 'url("' + path + '")';
     if (blur) blur.style.backgroundImage = u;
-    if (img) img.style.backgroundImage = u;
+    if (img) {
+      img.style.backgroundImage = u;
+      var fit = getWallFit();
+      img.style.backgroundSize = fit === 'contain' ? 'contain' : 'cover';
+      img.style.backgroundRepeat = 'no-repeat';
+      img.style.backgroundPosition = 'center';
+    }
     wp.classList.remove('hidden');
     document.body.classList.add('has-wallpaper');
+    renderWallFit();
     var m2 = $('#wallMeta');
     if (m2) m2.textContent = '已设置 · 比例不匹配处自动模糊填充';
   }
@@ -2098,8 +2146,10 @@
     if (typeof lum === 'number' && lum >= 0) {
       try { localStorage.setItem('wallLum', String(lum)); } catch (e) {}
     }
-    // 先进编辑器（拖动/缩放/旋转/镜像/裁剪），点「完成」才真正应用
-    openWallpaperEditor(path);
+    try { localStorage.setItem('wallpaper', path); } catch (e) {}
+    applyWallpaper(path);
+    applyTextStyle();
+    toast('壁纸已应用');
   };
 
   function clearWallpaper() {
@@ -2298,125 +2348,15 @@
       });
     });
   }
-  /* ================= 壁纸编辑器 ================= */
-  var wpEd = {
-    path: '', scale: 1, dx: 0, dy: 0,
-    dragging: false, lastX: 0, lastY: 0, pinchDist: 0
-  };
-
-  function openWallpaperEditor(path) {
-    wpEd.path = path;
-    wpEd.scale = 1;
-    wpEd.dx = 0;
-    wpEd.dy = 0;
-    var el = $('#wpEditor');
-    if (!el) return;
-    el.classList.remove('hidden');
-    renderWpPreview();
-    bindWpEditorOnce();
-  }
-
-  function renderWpPreview() {
-    var img = $('#wpEdImg');
-    if (!img) return;
-    img.style.backgroundImage = 'url("' + wpEd.path + '")';
-    img.style.transform =
-      'translate(' + wpEd.dx + 'px,' + wpEd.dy + 'px) scale(' + wpEd.scale + ')';
-  }
-
-  var wpBound = false;
-  function bindWpEditorOnce() {
-    if (wpBound) return;
-    wpBound = true;
-
-    var stage = $('#wpEdStage');
-    var cancel = $('#wpEdCancel');
-    var done = $('#wpEdDone');
-    var tools = document.querySelector('.wp-ed-tools');
-
-    if (cancel) {
-      cancel.addEventListener('click', function () {
-        $('#wpEditor').classList.add('hidden');
-      });
-    }
-
-    if (done) {
-      done.addEventListener('click', function () {
-        $('#wpEditor').classList.add('hidden');
-        call('renderWallpaper', { scale: wpEd.scale, dx: wpEd.dx, dy: wpEd.dy })
-          .then(function (r) {
-            if (r && r.path) {
-              try { localStorage.setItem('wallpaper', r.path); } catch (e) {}
-              applyWallpaper(r.path);
-              applyTextStyle();
-              toast('壁纸已更新');
-            } else {
-              toast('生成壁纸失败');
-            }
-          })
-          .catch(function () { toast('生成壁纸失败'); });
-      });
-    }
-
-    if (tools) {
-      tools.addEventListener('click', function (e) {
-        var t = e.target;
-        if (!t || !t.closest) return;
-        var tool = t.closest('.wp-ed-tool');
-        if (!tool) return;
-        var op = tool.getAttribute('data-op');
-        toast('处理中…');
-        call('transformWallpaper', { op: op }).then(function (r) {
-          if (r && r.path) {
-            wpEd.path = r.path;
-            wpEd.dx = 0;
-            wpEd.dy = 0;
-            renderWpPreview();
-          } else {
-            toast('处理失败');
-          }
-        }).catch(function () { toast('处理失败'); });
-      });
-    }
-
-    if (stage) {
-      // 单指/鼠标拖动
-      stage.addEventListener('pointerdown', function (e) {
-        if (e.pointerType === 'touch' && e.isPrimary === false) return;
-        wpEd.dragging = true;
-        wpEd.lastX = e.clientX;
-        wpEd.lastY = e.clientY;
-        try { stage.setPointerCapture(e.pointerId); } catch (err) {}
-        e.preventDefault();
-      });
-      stage.addEventListener('pointermove', function (e) {
-        if (!wpEd.dragging) return;
-        wpEd.dx += e.clientX - wpEd.lastX;
-        wpEd.dy += e.clientY - wpEd.lastY;
-        wpEd.lastX = e.clientX;
-        wpEd.lastY = e.clientY;
-        renderWpPreview();
-        e.preventDefault();
-      });
-      function endDrag() { wpEd.dragging = false; }
-      stage.addEventListener('pointerup', endDrag);
-      stage.addEventListener('pointercancel', endDrag);
-
-      // 双指缩放
-      stage.addEventListener('touchmove', function (e) {
-        if (e.touches.length !== 2) return;
-        var t1 = e.touches[0], t2 = e.touches[1];
-        var d = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-        if (wpEd.pinchDist > 0) {
-          var ratio = d / wpEd.pinchDist;
-          wpEd.scale = Math.max(0.5, Math.min(3, wpEd.scale * ratio));
-          renderWpPreview();
-        }
-        wpEd.pinchDist = d;
-        e.preventDefault();
-      }, { passive: false });
-      stage.addEventListener('touchend', function () { wpEd.pinchDist = 0; });
-    }
+  var fitRow = $('#wallFitRow');
+  if (fitRow) {
+    fitRow.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.getAttribute) return;
+      var fit = t.getAttribute('data-fit');
+      if (!fit) return;
+      applyWallFit(fit);
+    });
   }
   $('#rowWallpaper').addEventListener('click', function () {
     call('pickWallpaper').catch(function () {
@@ -2680,6 +2620,10 @@
 
   boot();
 })();
+
+
+
+
 
 
 
