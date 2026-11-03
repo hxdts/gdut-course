@@ -475,6 +475,75 @@ public class MainActivity extends android.app.Activity {
     }
 
     /** 把选中的图片复制到应用私有目录，返回 file:// 地址。 */
+    /**
+     * 对当前壁纸做变换：rotate(顺时针90°) / flipH(水平镜像) / flipV(垂直镜像) / crop(按9:16居中裁剪)
+     * 返回新的 file:// 路径；失败返回 null。
+     */
+    public String transformWallpaper(String op) {
+        try {
+            java.io.File dir = new java.io.File(getFilesDir(), "wallpaper");
+            java.io.File[] files = dir.listFiles();
+            if (files == null || files.length == 0) return null;
+            java.io.File src = files[0];
+            android.graphics.Bitmap bmp =
+                    android.graphics.BitmapFactory.decodeFile(src.getAbsolutePath());
+            if (bmp == null) return null;
+
+            android.graphics.Matrix m = new android.graphics.Matrix();
+            boolean needMatrix = true;
+
+            if ("rotate".equals(op)) {
+                m.postRotate(90);
+            } else if ("flipH".equals(op)) {
+                m.postScale(-1, 1);
+            } else if ("flipV".equals(op)) {
+                m.postScale(1, -1);
+            } else if ("crop".equals(op)) {
+                needMatrix = false;
+                int w = bmp.getWidth();
+                int h = bmp.getHeight();
+                float target = 9f / 16f;
+                float cur = (float) w / (float) h;
+                if (cur > target) {
+                    int nw = Math.max(1, (int) (h * target));
+                    int x = (w - nw) / 2;
+                    bmp = android.graphics.Bitmap.createBitmap(bmp, x, 0, nw, h);
+                } else if (cur < target) {
+                    int nh = Math.max(1, (int) (w / target));
+                    int y = (h - nh) / 2;
+                    bmp = android.graphics.Bitmap.createBitmap(bmp, 0, y, w, nh);
+                }
+            } else {
+                return null;
+            }
+
+            android.graphics.Bitmap outBmp = bmp;
+            if (needMatrix) {
+                outBmp = android.graphics.Bitmap.createBitmap(
+                        bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), m, true);
+            }
+
+            // 清掉旧文件
+            java.io.File[] olds = dir.listFiles();
+            if (olds != null) {
+                for (java.io.File f2 : olds) f2.delete();
+            }
+
+            java.io.File dst = new java.io.File(dir,
+                    "wallpaper_" + System.currentTimeMillis() + ".jpg");
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(dst);
+            outBmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, fos);
+            fos.flush();
+            fos.close();
+
+            if (outBmp != bmp && !outBmp.isRecycled()) outBmp.recycle();
+            if (!bmp.isRecycled()) bmp.recycle();
+
+            return "file://" + dst.getAbsolutePath();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
     private String copyImageToPrivate(android.net.Uri uri) {
         java.io.InputStream in = null;
         java.io.FileOutputStream fos = null;
@@ -586,3 +655,4 @@ public class MainActivity extends android.app.Activity {
         super.onDestroy();
     }
 }
+
