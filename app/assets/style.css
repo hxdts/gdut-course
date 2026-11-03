@@ -822,7 +822,7 @@ body.dark-theme .color-line::after {
 }
 
 /* 课表页去掉顶部多余留白 */
-#page-tt { margin-top: -12px; }
+#page-tt { margin-top: 0; }
 
 /* 课表文字字号：可拖动滑块（与透明度同款） */
 .ttfs-row { display: flex; align-items: center; gap: 10px; }
@@ -854,3 +854,28 @@ body.dark-theme .color-line::after {
   cursor: grabbing;
   transform: translateX(-50%) scale(1.12);
 }
+
+/* 悬浮刷新按钮（顶栏已删） */
+.fab-refresh {
+  position: fixed; right: 16px;
+  bottom: calc(106px + env(safe-area-inset-bottom, 0px));
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--blue); color: #fff;
+  box-shadow: 0 6px 20px rgba(47,107,255,.42);
+  z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .12s;
+}
+.fab-refresh svg { width: 23px; height: 23px; }
+.fab-refresh:active { transform: scale(.93); }
+
+/* 课表状态提示（原顶栏内容移到这里） */
+.week-bar { justify-content: space-between; }
+.tt-status {
+  font-size: calc(11px * var(--fs, 1));
+  color: var(--sub);
+  max-width: 46%;
+  text-align: right;
+  line-height: 1.3;
+}
+
