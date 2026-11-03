@@ -164,8 +164,8 @@
       var v = localStorage.getItem('rememberPwd');
       if (v === '0') rememberPwd = false;
     } catch (e) {}
-    var box = $('#rememberBox');
-    if (box) box.classList.toggle('on', rememberPwd);
+    var row = $('#rememberRow');
+    if (row) row.classList.toggle('on', rememberPwd);
     // 点击绑定走 bindLoginCheckboxes 的 document 委托，不依赖启动时序
   }
 
@@ -201,8 +201,7 @@
       var rm = findById(t, 'rememberRow');
       if (rm) {
         rememberPwd = !rememberPwd;
-        var bx = $('#rememberBox');
-        if (bx) bx.classList.toggle('on', rememberPwd);
+        rm.classList.toggle('on', rememberPwd);
         try { localStorage.setItem('rememberPwd', rememberPwd ? '1' : '0'); } catch (err) {}
         if (!rememberPwd) {
           try {
@@ -2874,6 +2873,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
