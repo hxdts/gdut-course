@@ -2637,6 +2637,8 @@
       // 取消上一次还没完成的换页（用户又滑了，说明想反悔）
       if (ttSwipe.cancelSwap) { try { ttSwipe.cancelSwap(); } catch (err) {} }
       ttSwipe.startX = xOf(e);
+      ttSwipe.samples = [];   // 每次按下清空速度采样
+      ttSwipe.samples.push({ x: ttSwipe.startX, t: Date.now() });
       ttSwipe.dragging = true;
       ttSwipe.startPos = ttSwipe.pos;
       ttSetPos(ttSwipe.pos, false);
@@ -2644,10 +2646,19 @@
 
     function onMove(e) {
       if (!ttSwipe.dragging) return;
-      var dx = xOf(e) - ttSwipe.startX;
-      ttSetPos(ttSwipe.startPos - dx, false);
+      doMove(xOf(e));
     }
 
+    /** 记录位移 + 速度采样，供松手时判断“甩”的力度 */
+    function doMove(x) {
+      var now = Date.now();
+      ttSwipe.curX = x;
+      ttSwipe.curT = now;
+      if (!ttSwipe.samples) ttSwipe.samples = [];
+      ttSwipe.samples.push({ x: x, t: now });
+      if (ttSwipe.samples.length > 6) ttSwipe.samples.shift();
+      ttSetPos(ttSwipe.startPos - (x - ttSwipe.startX), false);
+    }
     function onEnd() {
       if (!ttSwipe.dragging) return;
       ttSwipe.dragging = false;
@@ -2658,20 +2669,34 @@
       var p = ttSwipe.pos;
       var DUR = 800;   // 换页动画时长（与 ttSetPos 的 transition 一致）
 
-      // 越过相邻周 16%：整页滑过去，滑到位后用 transitionend 立刻换数据，避免"卡一下"
-      if (p < leftEdge - pw * 0.16) {
-        slideThenSwap(0, -1, DUR);
-        return;
+      // 松手瞬间的速度（px/ms）：快速一甩时以“最新动作”为准，不等滑够距离
+      var vel = 0;
+      var sp = ttSwipe.samples || [];
+      if (sp.length >= 2) {
+        var a = sp[0], b = sp[sp.length - 1];
+        var dt = b.t - a.t;
+        if (dt > 0) vel = (b.x - a.x) / dt;
       }
-      if (p > rightEdge + pw * 0.16) {
-        slideThenSwap(pw * 2, 1, DUR);
-        return;
-      }
+      var FLING = 0.5;   // 约 500px/s
 
-      // 没过阈值：完整回弹到本周这一页的端点（左端或右端）
+      // 已经越过本周边界的部分：位置够了 或 甩得够快，都直接换页
       if (p < leftEdge) {
-        ttSetPos(leftEdge, true, 320);
-      } else if (p > rightEdge) {
+        if (p < leftEdge - pw * 0.12 || vel > FLING) {
+          slideThenSwap(0, -1, DUR);
+        } else {
+          ttSetPos(leftEdge, true, 320);
+        }
+        return;
+      }
+      if (p > rightEdge) {
+        if (p > rightEdge + pw * 0.12 || vel < -FLING) {
+          slideThenSwap(pw * 2, 1, DUR);
+        } else {
+          ttSetPos(rightEdge, true, 320);
+        }
+        return;
+      }
+    }
         ttSetPos(rightEdge, true, 320);
       }
     }
