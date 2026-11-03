@@ -1228,7 +1228,9 @@ body.dark-theme .tt-dots i { background: rgba(255,255,255,.25); }
 /* ===== 课表列宽：纯 CSS 自适应视口，一屏正好 5 天 ===== */
 .tt-week { flex: 0 0 auto; width: auto; }
 .tt-week .timetable {
-  grid-template-columns: 26px repeat(7, calc((100vw - 62px) / 5)) !important;
+  grid-template-columns: 26px repeat(7, calc((100vw - 66px) / 5)) !important;
   width: max-content !important;
 }
+
+
 
