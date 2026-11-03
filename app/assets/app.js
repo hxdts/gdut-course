@@ -1221,41 +1221,70 @@
     '#d946ef', '#a855f7', '#7c3aed', '#6366f1', '#0ea5e9', '#64748b',
     '#0f172a', '#334155'
   ];
-  /** 构建某段星期（如周一~周五）的课表网格 */
-  function buildGrid(dayFrom, dayTo, sections, grid, days) {
-    var cols = dayTo - dayFrom + 1;
-    var html = '<div class="timetable" style="grid-template-columns:26px repeat(' + cols + ',1fr)">';
-    html += '<div class="tt-head" style="grid-row:1;grid-column:1"></div>';
+  /** 把某一周的课程渲染成完整网格（周一到周日 7 列）；courses 为空时渲染空网格 */
+  function buildPane(courses) {
+    var days = ['一', '二', '三', '四', '五', '六', '日'];
+    var cs = courses || [];
+
+    var minS = 99, maxS = 0;
+    cs.forEach(function (c) {
+      if (c.start) minS = Math.min(minS, c.start);
+      if (c.end) maxS = Math.max(maxS, c.end);
+    });
+    if (minS > maxS) { minS = 1; maxS = 8; }
+    minS = Math.min(minS, 1);
+    maxS = Math.max(maxS, Math.min(12, maxS));
+    var sections = [];
+    for (var s = minS; s <= maxS; s++) sections.push(s);
+
+    var grid = {};
+    cs.forEach(function (c, i) {
+      c.__i = i;
+      var e = c.end || c.start;
+      for (var k = c.start; k <= e; k++) grid[c.day + '_' + k] = c;
+    });
+
     var todayStr = todayDateStr();
-    for (var d = dayFrom; d <= dayTo; d++) {
+    var html = '<div class="timetable">';
+    html += '<div class="tt-head" style="grid-row:1;grid-column:1"></div>';
+    for (var d = 1; d <= 7; d++) {
       var dd = dayDate(d);
       var isToday = dd && dd === todayStr;
-      html += '<div class="tt-head" style="grid-row:1;grid-column:' + (d - dayFrom + 2) + '">' + days[d - 1] +
+      html += '<div class="tt-head" style="grid-row:1;grid-column:' + (d + 1) + '">' + days[d - 1] +
         (dd ? '<span class="tt-date' + (isToday ? ' today' : '') + '">' + dd + '</span>' : '') +
         '</div>';
     }
     sections.forEach(function (sec, idx) {
       var row = idx + 2;
       html += '<div class="tt-side" style="grid-row:' + row + ';grid-column:1">' + sec + '</div>';
-      for (var d = dayFrom; d <= dayTo; d++) {
+      for (var d = 1; d <= 7; d++) {
         var c = grid[d + '_' + sec];
-        var col = d - dayFrom + 2;
         if (c && c.start === sec) {
           var span = Math.min((c.end || c.start) - c.start + 1, sections.length - idx);
           html += '<div class="tt-cell" style="grid-row:' + row + ' / span ' + span +
-            ';grid-column:' + col + '">' +
+            ';grid-column:' + (d + 1) + '">' +
             '<div class="tt-course" data-idx="' + c.__i + '" style="background:' + colorOf(c.name) + '">' +
             '<span class="n">' + esc(shortName(c.name)) + '</span>' +
             (c.room ? '<span class="r">' + esc(c.room) + '</span>' : '') +
             (c.teacher ? '<span class="r">' + esc(c.teacher) + '</span>' : '') +
             '</div></div>';
         } else if (!c) {
-          html += '<div class="tt-cell" style="grid-row:' + row + ';grid-column:' + col + '"></div>';
+          html += '<div class="tt-cell" style="grid-row:' + row + ';grid-column:' + (d + 1) + '"></div>';
         }
       }
     });
     html += '</div>';
     return html;
+  }
+
+  /** 取某周的课程（优先本地缓存），没有则返回空数组 */
+  function coursesOfWeek(w) {
+    if (w < 1 || w > (state.totalWeeks || 22)) return [];
+    try {
+      var c = loadTtCache(state.term, w);
+      if (c && c.courses) return c.courses;
+    } catch (e) {}
+    return [];
   }
   function renderTimetable() {
     var wrap = $('#ttWrap');
@@ -1265,36 +1294,17 @@
       var emsg = state.ttError
         ? state.ttError
         : '第 ' + (state.week || 1) + ' 周教务系统没有返回课程。可以点左右箭头切换到别的周看看。';
-      wrap.innerHTML = emptyState('这周没有课', emsg, '重新加载');
-      bindOpenSite(wrap);
-      $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
-      return;
-    }
-
-    // 节次范围
-    var minS = 99, maxS = 0;
-    cs.forEach(function (c) {
-      if (c.start) minS = Math.min(minS, c.start);
-      if (c.end) maxS = Math.max(maxS, c.end);
-    });
-    if (minS > maxS) { minS = 1; maxS = 12; }
-    minS = Math.min(minS, 1);
-    maxS = Math.max(maxS, Math.min(12, maxS));
-    var sections = [];
-    for (var s = minS; s <= maxS; s++) sections.push(s);
-
+    // 三页轨道：上一周 / 本周 / 下一周，滑动时能看到相邻周的真实课表
+    var curW = state.week || 1;
+    var prevC = coursesOfWeek(curW - 1);
+    var nextC = coursesOfWeek(curW + 1);
+    var html = '<div class="tt-viewport" id="ttViewport">' +
+      '<div class="tt-track" id="ttTrack">' +
+      '<div class="tt-slab">' + buildPane(prevC) + '</div>' +
+      '<div class="tt-slab">' + buildPane(cs) + '</div>' +
+      '<div class="tt-slab">' + buildPane(nextC) + '</div>' +
+      '</div></div>';
     var days = ['一', '二', '三', '四', '五', '六', '日'];
-
-    // day_sec -> 课程（跨节课程覆盖其所有小节）
-    var grid = {};
-    cs.forEach(function (c, i) {
-      c.__i = i;
-      var e = c.end || c.start;
-      for (var k = c.start; k <= e; k++) grid[c.day + '_' + k] = c;
-    });
-
-    // 7 列一页显示（周一到周日），横向滑动手势用于切换周次
-    var html = '<div class="tt-viewport" id="ttViewport">' + buildGrid(1, 7, sections, grid, days) + '</div>';
     var byName = {};
     cs.forEach(function (c) { (byName[c.name] = byName[c.name] || []).push(c); });
     html += '<div class="card" style="margin-top:12px"><div class="card-title">课程 · ' +
@@ -2459,29 +2469,34 @@
       applyWallFit(fit);
     });
   }
-  /* ================= 课表横向滑动切周（跟手 + 过半判断） ================= */
+  /* ================= 课表三页轨道滑动切周 ================= */
   var ttSwipe = { active: false, startX: 0, dx: 0, w: 1 };
+
+  function trackOffset(px, animate) {
+    var track = $('#ttTrack');
+    if (!track) return;
+    track.style.transition = animate ? 'transform .28s cubic-bezier(.22,.68,.36,1)' : 'none';
+    // 基础位置 -33.3333%（居中页），再加手指位移
+    track.style.transform = 'translateX(calc(-33.3333% + ' + px + 'px))';
+  }
 
   function initTTSwipe() {
     var vp = $('#ttViewport');
-    if (!vp || vp.__swipeBound) return;
-    vp.__swipeBound = true;
-
-    var pane = vp.firstElementChild || vp;
-
-    function setOffset(px, animate) {
-      pane.style.transition = animate ? 'transform .26s cubic-bezier(.22,.68,.36,1), opacity .26s' : 'none';
-      pane.style.transform = 'translateX(' + px + 'px)';
-      var op = 1 - Math.min(0.45, Math.abs(px) / ttSwipe.w * 0.55);
-      pane.style.opacity = String(op);
+    var track = $('#ttTrack');
+    if (!vp || !track) return;
+    if (vp.__swipeBound) {
+      // 已绑定过，只需复位到中间页
+      trackOffset(0, false);
+      return;
     }
+    vp.__swipeBound = true;
 
     function onStart(x) {
       ttSwipe.w = vp.clientWidth || 1;
       ttSwipe.startX = x;
       ttSwipe.dx = 0;
       ttSwipe.active = true;
-      setOffset(0, false);
+      trackOffset(0, false);
     }
 
     function onMove(x) {
@@ -2489,29 +2504,29 @@
       var dx = x - ttSwipe.startX;
       var cur = state.week || 1;
       var total = state.totalWeeks || 22;
-      // 第一周不能右滑、最后一周不能左滑：加阻尼
       if ((cur <= 1 && dx > 0) || (cur >= total && dx < 0)) dx *= 0.3;
       ttSwipe.dx = dx;
-      setOffset(dx, false);
+      trackOffset(dx, false);
     }
 
     function onEnd() {
       if (!ttSwipe.active) return;
       ttSwipe.active = false;
       var dx = ttSwipe.dx;
-      // 阈值：屏宽的 30%（原来 50% 太高，很难滑过去）
+      var cur = state.week || 1;
+      var total = state.totalWeeks || 22;
       var th = Math.max(56, ttSwipe.w * 0.3);
-      if (dx <= -th) {
-        // 左滑过半 → 下一周
-        setOffset(-ttSwipe.w, true);
-        setTimeout(function () { goToWeek((state.week || 1) + 1); }, 120);
-      } else if (dx >= th) {
-        // 右滑过半 → 上一周
-        setOffset(ttSwipe.w, true);
-        setTimeout(function () { goToWeek((state.week || 1) - 1); }, 120);
+
+      if (dx <= -th && cur < total) {
+        track.style.transition = 'transform .2s ease';
+        track.style.transform = 'translateX(-66.6666%)';
+        setTimeout(function () { goToWeek(cur + 1); }, 150);
+      } else if (dx >= th && cur > 1) {
+        track.style.transition = 'transform .2s ease';
+        track.style.transform = 'translateX(0%)';
+        setTimeout(function () { goToWeek(cur - 1); }, 150);
       } else {
-        // 没过半 → 回退
-        setOffset(0, true);
+        trackOffset(0, true);
       }
       ttSwipe.dx = 0;
     }
@@ -2544,14 +2559,11 @@
     });
   }
 
-  /** 切周后把位移复位，避免新内容还带着平移 */
   function resetSwipeOffset() {
-    var vp = $('#ttViewport');
-    if (!vp) return;
-    var pane = vp.firstElementChild || vp;
-    pane.style.transition = 'none';
-    pane.style.transform = 'translateX(0)';
-    pane.style.opacity = '1';
+    var track = $('#ttTrack');
+    if (!track) return;
+    track.style.transition = 'none';
+    track.style.transform = 'translateX(-33.3333%)';
   }
   $('#rowWallpaper').addEventListener('click', function () {
     call('pickWallpaper').catch(function () {
@@ -2816,6 +2828,9 @@
 
   boot();
 })();
+
+
+
 
 
 
