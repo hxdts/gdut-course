@@ -173,11 +173,19 @@
   function bindLoginCheckboxes() {
     if (window.__cbBound) return;
     window.__cbBound = true;
-    document.addEventListener('click', function (e) {
-      var t = e.target;
-      if (!t || !t.closest) return;
+    // 用 parentNode 逐级上找，不用 closest：部分安卓 WebView 对 SVG 子元素不支持 closest
+    function findById(el, id) {
+      while (el && el.nodeType === 1) {
+        if (el.id === id) return el;
+        el = el.parentNode;
+      }
+      return null;
+    }
 
-      var ag = t.closest('#agreeRow');
+    document.addEventListener('click', function (e) {
+      var t = e.target || e.srcElement;
+
+      var ag = findById(t, 'agreeRow');
       if (ag) {
         if (t.id === 'lnkTerms') {
           var tm = $('#terms');
@@ -190,7 +198,7 @@
         return;
       }
 
-      var rm = t.closest('#rememberRow');
+      var rm = findById(t, 'rememberRow');
       if (rm) {
         rememberPwd = !rememberPwd;
         var bx = $('#rememberBox');
@@ -203,7 +211,7 @@
           } catch (err) {}
         }
       }
-    });
+    }, true);
   }
 
   function saveLogin(sid, pwd) {
@@ -2866,6 +2874,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
