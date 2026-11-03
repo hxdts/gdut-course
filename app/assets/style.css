@@ -1154,3 +1154,11 @@ body.dark-theme .tt-dots i { background: rgba(255,255,255,.25); }
 .agree-row .lnk {
   pointer-events: auto;   /* 协议链接仍需可点 */
 }
+
+/* 三页之间留出间距，避免上一页周日和下一页周一贴在一起 */
+.tt-slab {
+  box-sizing: border-box;
+  padding: 0 6px;
+}
+.tt-slab:first-child { padding-left: 0; }
+.tt-slab:last-child { padding-right: 0; }
