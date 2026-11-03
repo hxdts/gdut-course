@@ -1285,22 +1285,30 @@
     var card = $('#courseListCard');
     if (!card) return;
     var days = ['一', '二', '三', '四', '五', '六', '日'];
+    cs = cs || [];
     var byName = {};
     cs.forEach(function (c) { (byName[c.name] = byName[c.name] || []).push(c); });
-    var html2 = '<div class="card-title">课程 · ' + Object.keys(byName).length + ' 门</div>';
-    Object.keys(byName).forEach(function (n) {
-      var arr = byName[n];
-      var c = arr[0];
-      var times = arr.map(function (x) { return '周' + days[x.day - 1] + ' 第' + x.start + '-' + x.end + '节'; }).join('，');
-      var isCustom = !!getCourseColors()[n];
-      html2 += '<div class="course-row"><div style="flex:1">' +
-        '<div class="nm">' + esc(n) + '</div>' +
-        '<div class="meta">' + esc(times) + (c.teacher ? ' · ' + esc(c.teacher) : '') + (c.room ? ' · ' + esc(c.room) : '') + '</div>' +
-        '</div>' +
-        '<span class="cc-dot' + (isCustom ? ' custom' : '') + '" data-name="' + esc(n) + '"' +
-        ' style="background:' + colorOf(n) + '"></span>' +
-        '</div>';
-    });
+    var html2;
+    if (!cs.length) {
+      html2 = '<div class="card-title">课程 · 0 门</div>' +
+        '<div class="meta" style="padding:6px 0 10px;color:var(--sub)">' +
+        (state.ttError || '这一周没有课，左右滑动可以查看别的周') + '</div>';
+    } else {
+      html2 = '<div class="card-title">课程 · ' + Object.keys(byName).length + ' 门</div>';
+      Object.keys(byName).forEach(function (n) {
+        var arr = byName[n];
+        var c = arr[0];
+        var times = arr.map(function (x) { return '周' + days[x.day - 1] + ' 第' + x.start + '-' + x.end + '节'; }).join('，');
+        var isCustom = !!getCourseColors()[n];
+        html2 += '<div class="course-row"><div style="flex:1">' +
+          '<div class="nm">' + esc(n) + '</div>' +
+          '<div class="meta">' + esc(times) + (c.teacher ? ' · ' + esc(c.teacher) : '') + (c.room ? ' · ' + esc(c.room) : '') + '</div>' +
+          '</div>' +
+          '<span class="cc-dot' + (isCustom ? ' custom' : '') + '" data-name="' + esc(n) + '"' +
+          ' style="background:' + colorOf(n) + '"></span>' +
+          '</div>';
+      });
+    }
     card.innerHTML = html2;
   }
   function buildPane(courses, colW) {
@@ -1372,15 +1380,14 @@
     var wrap = $('#ttWrap');
     var cs = state.courses;
 
-    if (!cs.length) {
+    // 这一周没课也要渲染条带（空网格），否则手势无处可滑、换不了周
+    var isEmptyWeek = !cs.length;
+    if (isEmptyWeek) {
       var emsg = state.ttError
         ? state.ttError
-        : '第 ' + (state.week || 1) + ' 周教务系统没有返回课程。可以点左右箭头切换到别的周看看。';
-      wrap.innerHTML = emptyState('这周没有课', emsg, '重新加载');
-      bindOpenSite(wrap);
-      $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
-      return;
+        : '第 ' + (state.week || 1) + ' 周教务系统没有返回课程。';
     }
+
     // 连续时间线：上一周 | 本周 | 下一周 并排，横向滚动可以一路滑过去
     var vpW = document.documentElement.clientWidth || 360;
     var colW = Math.max(46, Math.floor((vpW - 108) / 5));
@@ -1410,26 +1417,10 @@
     }
 
     var days = ['一', '二', '三', '四', '五', '六', '日'];
-    var byName = {};
-    cs.forEach(function (c) { (byName[c.name] = byName[c.name] || []).push(c); });
-    html += '<div class="card" id="courseListCard" style="margin-top:12px"><div class="card-title">课程 · ' +
-            Object.keys(byName).length + ' 门</div>';
-    Object.keys(byName).forEach(function (n) {
-      var arr = byName[n];
-      var c = arr[0];
-      var times = arr.map(function (x) { return '周' + days[x.day - 1] + ' 第' + x.start + '-' + x.end + '节'; }).join('，');
-      var isCustom = !!getCourseColors()[n];
-      html += '<div class="course-row"><div style="flex:1">' +
-        '<div class="nm">' + esc(n) + '</div>' +
-        '<div class="meta">' + esc(times) + (c.teacher ? ' · ' + esc(c.teacher) : '') + (c.room ? ' · ' + esc(c.room) : '') + '</div>' +
-        '</div>' +
-        '<span class="cc-dot' + (isCustom ? ' custom' : '') + '" data-name="' + esc(n) + '"' +
-        ' style="background:' + colorOf(n) + '"></span>' +
-        '</div>';
-    });
-    html += '</div>';
+    html += '<div class="card" id="courseListCard" style="margin-top:12px"></div>';
 
     wrap.innerHTML = html;
+    renderCourseList(cs);
     $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
 
     // 每次重建后：复位并绑定滚动跨周
@@ -2639,26 +2630,44 @@
       var leftEdge = pw;
       var rightEdge = 2 * pw - vp;
       var p = ttSwipe.pos;
-      var DUR = 800;   // 换页动画时长（跟 ttSetPos 的 transition 一致）
+      var DUR = 800;   // 换页动画时长（与 ttSetPos 的 transition 一致）
 
-      // 越过相邻周 18%：先把整页滑完（看得见的换页动画），动画结束后再换数据
+      // 越过相邻周 16%：整页滑过去，滑到位后用 transitionend 立刻换数据，避免"卡一下"
       if (p < leftEdge - pw * 0.16) {
-        ttSetPos(0, true);
-        setTimeout(function () { goWeek(-1); }, DUR);
+        slideThenSwap(0, -1, DUR);
         return;
       }
       if (p > rightEdge + pw * 0.16) {
-        ttSetPos(pw * 2, true);
-        setTimeout(function () { goWeek(1); }, DUR);
+        slideThenSwap(pw * 2, 1, DUR);
         return;
       }
 
-      // 没过阈值：弹回本周边界
+      // 没过阈值：完整回弹到本周这一页的端点（左端或右端）
       if (p < leftEdge) {
         ttSetPos(leftEdge, true, 320);
       } else if (p > rightEdge) {
         ttSetPos(rightEdge, true, 320);
       }
+    }
+
+    /** 滑到目标位置，动画真正结束的那一刻再换数据（比 setTimeout 精确，不会卡顿） */
+    function slideThenSwap(target, dir, dur) {
+      var strip = $('#ttStrip');
+      if (!strip) { ttSetPos(target, false); goWeek(dir); return; }
+      var done = false;
+      function finish() {
+        if (done) return;
+        done = true;
+        strip.removeEventListener('transitionend', onTE);
+        goWeek(dir);
+      }
+      function onTE(e) {
+        if (!e || e.propertyName === 'transform') finish();
+      }
+      strip.addEventListener('transitionend', onTE);
+      // 兜底：万一 transitionend 没触发（被隐藏/中断），超时后照样换
+      setTimeout(finish, dur + 150);
+      ttSetPos(target, true, dur);
     }
 
     sc.addEventListener('touchstart', onStart, { passive: true });
