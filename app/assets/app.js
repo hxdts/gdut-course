@@ -449,7 +449,8 @@
         return;
       }
       var w = todo[idx++];
-      setWho('正在缓存课表 ' + idx + '/' + todo.length + '…');
+      var stEl = $('#ttStatus');
+      if (stEl) stEl.textContent = '缓存 ' + idx + '/' + todo.length;
       call('timetable', { term: term, week: w })
         .then(function (d) {
           if (d && !d.error) {
@@ -669,8 +670,6 @@
   function setWho(text) {
     var el = $('#whoLine');
     if (el) el.textContent = text;
-    var st = $('#ttStatus');
-    if (st) st.textContent = text;
   }
 
   function showExpired() {
@@ -718,22 +717,19 @@
 
   function renderLastUpdated() {
     var el = $('#whoLine');
-    var st = $('#ttStatus');
-    if (!el && !st) return;
-    function put(text) {
-      if (el) el.textContent = text;
-      if (st) st.textContent = text;
+    if (!el) return;
+
+    function fmt(dt) {
+      return dt.getFullYear() + '.' + two(dt.getMonth() + 1) + '.' + two(dt.getDate()) +
+             ' ' + two(dt.getHours()) + ':' + two(dt.getMinutes());
     }
+
     if (state.offline && state.offlineAt) {
-      var t0 = new Date(state.offlineAt);
-      put('离线 · 更新于 ' +
-        two(t0.getMonth() + 1) + '-' + two(t0.getDate()) + ' ' +
-        two(t0.getHours()) + ':' + two(t0.getMinutes()));
+      el.textContent = fmt(new Date(state.offlineAt)) + ' · 离线';
       return;
     }
     if (!state.updatedAt) return;
-    var t = new Date(state.updatedAt);
-    put('更新于 ' + two(t.getHours()) + ':' + two(t.getMinutes()));
+    el.textContent = fmt(new Date(state.updatedAt)) + ' 更新';
   }
 
   /** 跳转到指定教学周：不显示全屏遮罩（会白闪），改用标签微提示 + 滑动动画 */
@@ -2771,6 +2767,8 @@
 
   boot();
 })();
+
+
 
 
 
