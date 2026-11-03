@@ -2547,7 +2547,7 @@
     var timer = null;
     sc.addEventListener('scroll', function () {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(onScrollEnd, 220);
+      timer = setTimeout(onScrollEnd, 110);
     });
 
     function onScrollEnd() {
@@ -2578,11 +2578,24 @@
       }
     }
 
-    function smoothScroll(el, left) {
-      if (el.scrollTo) {
-        try { el.scrollTo({ left: left, behavior: 'smooth' }); return; } catch (e) {}
+    /** 自己实现缓动回弹：时长适中、先快后慢，比浏览器默认的 smooth 更柔和 */
+    var animId = null;
+    function smoothScroll(el, target, duration) {
+      duration = duration || 420;
+      if (animId) cancelAnimationFrame(animId);
+      var start = el.scrollLeft;
+      var delta = target - start;
+      if (Math.abs(delta) < 1) { el.scrollLeft = target; return; }
+      var t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+      function step(now) {
+        var t = ((now || Date.now()) - t0) / duration;
+        if (t > 1) t = 1;
+        var e = 1 - Math.pow(1 - t, 3);   // ease-out cubic
+        el.scrollLeft = start + delta * e;
+        if (t < 1) animId = requestAnimationFrame(step);
+        else animId = null;
       }
-      el.scrollLeft = left;
+      animId = requestAnimationFrame(step);
     }
   }
 
@@ -2854,6 +2867,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
