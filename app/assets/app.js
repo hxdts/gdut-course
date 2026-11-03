@@ -2499,12 +2499,13 @@
       if (!ttSwipe.active) return;
       ttSwipe.active = false;
       var dx = ttSwipe.dx;
-      var half = ttSwipe.w * 0.5;      // 刚好一半
-      if (dx <= -half) {
+      // 阈值：屏宽的 30%（原来 50% 太高，很难滑过去）
+      var th = Math.max(56, ttSwipe.w * 0.3);
+      if (dx <= -th) {
         // 左滑过半 → 下一周
         setOffset(-ttSwipe.w, true);
         setTimeout(function () { goToWeek((state.week || 1) + 1); }, 120);
-      } else if (dx >= half) {
+      } else if (dx >= th) {
         // 右滑过半 → 上一周
         setOffset(ttSwipe.w, true);
         setTimeout(function () { goToWeek((state.week || 1) - 1); }, 120);
@@ -2815,6 +2816,7 @@
 
   boot();
 })();
+
 
 
 
