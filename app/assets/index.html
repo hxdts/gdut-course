@@ -137,6 +137,17 @@
           </div>
           <div style="color:var(--sub)">›</div>
         </div>
+        <div class="theme-block" id="wallFitBlock" style="display:none">
+          <div class="opt-head">
+            <span class="nm">屏幕适应</span>
+            <span class="opt-val" id="wallFitVal">左右铺满</span>
+          </div>
+          <div class="fit-row" id="wallFitRow">
+            <div class="fit-item" data-fit="cover">左右铺满</div>
+            <div class="fit-item" data-fit="contain">上下完整</div>
+          </div>
+        </div>
+
         <div class="course-row" id="rowWallClear">
           <div style="flex:1"><div class="nm" style="color:var(--danger)">移除壁纸</div></div>
         </div>
@@ -202,7 +213,7 @@
         <div class="course-row" id="rowUpdate">
           <div style="flex:1">
             <div class="nm">在线检查更新</div>
-            <div class="meta" id="verMeta">当前版本 v5.7</div>
+            <div class="meta" id="verMeta">当前版本 v5.8</div>
           </div>
           <div style="color:var(--sub)">›</div>
         </div>
@@ -235,40 +246,13 @@
       </div>
 
       <div class="muted" style="text-align:center;margin-top:18px">
-        广工课表 v5.7 · 数据来自学校教务系统<br>本应用不保存你的密码
+        广工课表 v5.8 · 数据来自学校教务系统<br>本应用不保存你的密码
       </div>
     </div>
 
-  <!-- 壁纸编辑器 -->
-  <div class="wp-editor hidden" id="wpEditor">
-    <div class="wp-ed-head">
-      <span class="wp-ed-btn" id="wpEdCancel">取消</span>
-      <span class="wp-ed-title">调整壁纸</span>
-      <span class="wp-ed-btn primary" id="wpEdDone">完成</span>
-    </div>
-    <div class="wp-ed-stage" id="wpEdStage">
-      <div class="wp-ed-img" id="wpEdImg"></div>
-      <div class="wp-ed-frame"></div>
-    </div>
-    <div class="wp-ed-tools">
-      <div class="wp-ed-tool" data-op="rotate">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
-        <span>旋转</span>
-      </div>
-      <div class="wp-ed-tool" data-op="flipH">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M8 7L3 12l5 5z"/><path d="M16 7l5 5-5 5z"/></svg>
-        <span>左右镜像</span>
-      </div>
-      <div class="wp-ed-tool" data-op="flipV">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M7 8l5-5 5 5z"/><path d="M7 16l5 5 5-5z"/></svg>
-        <span>上下镜像</span>
-      </div>
-
-    </div>
-  </div>
   <button class="fab-refresh" id="btnRefresh" title="刷新">
     <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M20.8 4.2v5.7h-5.2"/>
+      <path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M20.8 4.2v5.8h-5.2"/>
     </svg>
   </button>
 
@@ -339,6 +323,8 @@
 <script src="app.js"></script>
 </body>
 </html>
+
+
 
 
 
