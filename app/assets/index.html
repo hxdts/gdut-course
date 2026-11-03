@@ -4,19 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>广工课表</title>
-<script>
-/* 内联错误捕获：外部脚本没加载或抛错时，也能把原因显示出来 */
-window.__lastErr = "";
-window.__bootOk = false;
-window.onerror = function (m, src, line, col, err) {
-  window.__lastErr = String(m) + " @" + (src ? String(src).split("/").pop() : "?") + ":" + line + ":" + col;
-  return false;
-};
-window.addEventListener("unhandledrejection", function (ev) {
-  var r = ev.reason;
-  window.__lastErr = "Promise: " + ((r && (r.message || r)) || "unknown");
-});
-</script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -54,7 +41,7 @@ window.addEventListener("unhandledrejection", function (ev) {
     <div class="field">
       <svg viewBox="0 0 24 24" fill="none" stroke="#8b93a7" stroke-width="1.9" stroke-linecap="round">
         <rect x="4" y="10" width="16" height="10.5" rx="2.6"/>
-        <path d="M8 10v14.2a4 4 0 0 1 8 0V10"/>
+        <path d="M8 10v14.3a4 4 0 0 1 8 0V10"/>
       </svg>
       <input id="pwd" type="password" placeholder="统一身份认证密码" autocomplete="current-password">
     </div>
@@ -222,7 +209,7 @@ window.addEventListener("unhandledrejection", function (ev) {
         <div class="course-row" id="rowUpdate">
           <div style="flex:1">
             <div class="nm">在线检查更新</div>
-            <div class="meta" id="verMeta">当前版本 v14.2</div>
+            <div class="meta" id="verMeta">当前版本 v14.3</div>
           </div>
           <div style="color:var(--sub)">›</div>
         </div>
@@ -325,6 +312,7 @@ window.addEventListener("unhandledrejection", function (ev) {
 <div id="gdbg" style="display:none;position:fixed;left:8px;bottom:86px;z-index:99999;background:rgba(0,0,0,.82);color:#4ade80;font:11px/1.5 monospace;padding:8px 10px;border-radius:10px;max-width:92vw;white-space:pre-wrap;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.4)"></div>
 </body>
 </html>
+
 
 
 
