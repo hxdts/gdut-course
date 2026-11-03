@@ -392,6 +392,8 @@
     window.__bootOk = true;
     // 关键：把主界面显示出来（这行之前被误删，导致登录页藏起来、主界面也没出现 = 纯白屏）
     $('#app').classList.remove('hidden');
+    // 通知原生：界面已经画出来了，可以撤掉启动图
+    try { if (window.Native && window.Native.splashDone) window.Native.splashDone(); } catch (e) {}
     if ($('#meSid')) $('#meSid').textContent = state.sid || '—';
     switchPage('tt');
     // 每次打开都定位到"今天所在的周"。
@@ -3341,6 +3343,8 @@
     if (!HAS_NATIVE) {
       // 浏览器预览：直接进入主界面看空状态
       $('#app').classList.remove('hidden');
+    // 通知原生：界面已经画出来了，可以撤掉启动图
+    try { if (window.Native && window.Native.splashDone) window.Native.splashDone(); } catch (e) {}
       $('#login').classList.add('hidden');
       if ($('#whoLine')) $('#whoLine').textContent = '浏览器预览模式';
       if (location.search.indexOf('mock') >= 0) fillMock();
