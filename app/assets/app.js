@@ -738,7 +738,6 @@
 
   /** 跳转到指定教学周：不显示全屏遮罩（会白闪），改用标签微提示 + 滑动动画 */
   function goToWeek(w) {
-    if (sniffing) return;
     var total = state.totalWeeks || 22;
     if (w < 1) w = 1;
     if (w > total) w = total;
@@ -794,7 +793,13 @@
           renderTimetable();
           toast('网络异常，显示本地缓存');
         } else {
-          toast('切换周次失败：' + e.message);
+          // 连缓存都没有：仍然切到目标周并显示空状态，不要卡在原周
+          state.week = w;
+          state.courses = [];
+          state.ttError = '无法联网，且这一周没有本地缓存';
+          renderTimetable();
+          animateTimetable(dir);
+          toast('第 ' + w + ' 周 · 无法联网');
         }
       });
   }
@@ -2451,6 +2456,58 @@
       applyWallFit(fit);
     });
   }
+  /* ================= 课表左右滑动切周 ================= */
+  function initTTSwipe() {
+    var wrap = $('#ttWrap');
+    if (!wrap || wrap.__swipeBound) return;
+    wrap.__swipeBound = true;
+
+    var sx = 0, sy = 0, tracking = false, fired = false;
+
+    function onStart(x, y) {
+      sx = x; sy = y; tracking = true; fired = false;
+    }
+    function onMove(x, y) {
+      if (!tracking || fired) return;
+      var dx = x - sx, dy = y - sy;
+      // 水平位移足够大且明显大于垂直 → 切周
+      if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 1.6) {
+        fired = true;
+        tracking = false;
+        var cur = state.week || 1;
+        goToWeek(dx < 0 ? cur + 1 : cur - 1);
+      }
+    }
+    function onEnd() { tracking = false; }
+
+    wrap.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      onStart(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+
+    wrap.addEventListener('touchmove', function (e) {
+      if (e.touches.length !== 1) return;
+      onMove(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+
+    wrap.addEventListener('touchend', onEnd, { passive: true });
+    wrap.addEventListener('touchcancel', onEnd, { passive: true });
+
+    // 鼠标拖动（方便在电脑上测）
+    var mDown = false;
+    wrap.addEventListener('mousedown', function (e) {
+      if (e.button !== 0) return;
+      mDown = true;
+      onStart(e.clientX, e.clientY);
+    });
+    document.addEventListener('mousemove', function (e) {
+      if (!mDown) return;
+      onMove(e.clientX, e.clientY);
+    });
+    document.addEventListener('mouseup', function () {
+      mDown = false; onEnd();
+    });
+  }
   $('#rowWallpaper').addEventListener('click', function () {
     call('pickWallpaper').catch(function () {
       toast('无法打开相册');
@@ -2611,6 +2668,7 @@
     initAppearance();
     renderDiagnostics();
     initRemember();
+    initTTSwipe();
 
     // 每 3 秒检查一次设置有无变化，有则备份到原生（更新后不丢）
     var lastPrefSig = '';
@@ -2713,6 +2771,14 @@
 
   boot();
 })();
+
+
+
+
+
+
+
+
 
 
 
