@@ -37,6 +37,10 @@ input {
 .hidden { display: none !important; }
 
 /* ---------------- 登录页 ---------------- */
+/* 启动判断登录态期间：登录页先透明并禁止点击，只透出底色，
+   避免「闪一下登录界面」。判断失败也只会看到底色，不会卡死。 */
+#login.booting { opacity: 0; pointer-events: none; }
+#login { transition: opacity .12s linear; }
 #login {
   position: fixed; inset: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
