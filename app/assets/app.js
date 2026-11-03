@@ -2642,12 +2642,12 @@
       var DUR = 800;   // 换页动画时长（跟 ttSetPos 的 transition 一致）
 
       // 越过相邻周 18%：先把整页滑完（看得见的换页动画），动画结束后再换数据
-      if (p < leftEdge - pw * 0.22) {
+      if (p < leftEdge - pw * 0.16) {
         ttSetPos(0, true);
         setTimeout(function () { goWeek(-1); }, DUR);
         return;
       }
-      if (p > rightEdge + pw * 0.22) {
+      if (p > rightEdge + pw * 0.16) {
         ttSetPos(pw * 2, true);
         setTimeout(function () { goWeek(1); }, DUR);
         return;
@@ -2945,6 +2945,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
