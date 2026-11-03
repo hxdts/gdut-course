@@ -1073,15 +1073,6 @@ html, body {
 }
 
 
-/* ===== 课表改为整屏铺满 + 左右滑动切周 ===== */
-.tt-scroll {
-  overflow-x: hidden !important;
-  touch-action: pan-y;               /* 水平手势交给切周逻辑，垂直留给滚动 */
-}
-.timetable {
-  width: 100% !important;
-  gap: 3px !important;
-}
 
 /* 顶栏右侧操作区 */
 .topbar-actions { display: flex; align-items: center; gap: 8px; }
@@ -1178,3 +1169,11 @@ body.dark-theme .tt-dots i { background: rgba(255,255,255,.25); }
   gap: 3px !important;
 }
 .tt-slab { padding: 0; }
+
+/* 允许课表横向触摸滚动（之前被 touch-action: pan-y 锁死） */
+.tt-scroll {
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  touch-action: pan-x pan-y !important;
+  -webkit-overflow-scrolling: touch;
+}
