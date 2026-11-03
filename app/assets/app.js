@@ -2762,6 +2762,12 @@
       if (ttSwipe.active) return;
       // 打断进行中的换页：停在当前实际位置
       if (ttSwipe.cancelSwap) { try { ttSwipe.cancelSwap(); } catch (e) {} }
+      // 上一次换页的重渲染还挂在下一帧：先把它兑现，否则连滑时两次只算一次
+      if (ttSwipe.pendingWeek != null) {
+        var pw0 = ttSwipe.pendingWeek;
+        ttSwipe.pendingWeek = null;
+        try { goToWeek(pw0); } catch (e) {}
+      }
       ttSwipe.pos = readActualPos();
       // 上一次换页被打断时位置会停在半路，基准会错乱，先归中再开始拖
       var e0 = edges();
@@ -2900,9 +2906,15 @@
         if (done) return;
         done = true;
         cleanup();
-        // 放到下一帧再重渲染：上一帧刚做完 transform 过渡，同帧重排会看起来一顿
-        var targetWeek = (state.week || 1) + dir * pages;
-        requestAnimationFrame(function () { try { goToWeek(targetWeek); } catch (e) {} });
+        // 放到下一帧再重渲染（避免同帧重排卡顿），但先挂起：
+        // 用户立刻再滑时，begin 里会先兑现它，这样连续滑动不会只算一次
+        ttSwipe.pendingWeek = (state.week || 1) + dir * pages;
+        requestAnimationFrame(function () {
+          if (ttSwipe.pendingWeek == null) return;   // begin 已经兑现过了
+          var w = ttSwipe.pendingWeek;
+          ttSwipe.pendingWeek = null;
+          try { goToWeek(w); } catch (e) {}
+        });
       }
       function onTE(ev) {
         if (!ev || ev.propertyName === 'transform') finish();
@@ -3338,6 +3350,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
