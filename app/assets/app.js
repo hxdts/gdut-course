@@ -397,9 +397,17 @@
     } catch (e) {}
     var localWeek = guessWeekFromStart(savedStart);
     state.week = localWeek > 0 ? localWeek : 0;
+    // 先用本地缓存立刻画出课表，不等网络（联网启动慢的主要来源）
+    try {
+      if (state.week > 0 && applyTtCache(state.term, state.week)) {
+        renderTimetable();
+        renderLastUpdated();
+      }
+    } catch (e) {}
     setTimeout(function () {
       refresh(false);
     }, 300);
+    // 再在后台静默刷新，有变化才重渲染
   }
 
   /* ================= 刷新 / 抓取 ================= */
@@ -594,6 +602,18 @@
     } catch (e) { return 0; }
   }
 
+  /** 课表数据签名：刷新时用它判断数据有没有变化，没变就不重绘 */
+  function ttSig() {
+    var cs = state.courses || [];
+    var s = (state.week || 0) + '|' + (state.term || '') + '|' + cs.length + '|';
+    for (var i = 0; i < cs.length; i++) {
+      var c = cs[i];
+      s += c.name + c.day + c.start + c.end + ';';
+    }
+    var ds = state.days || [];
+    for (var j = 0; j < ds.length; j++) s += (ds[j].date || '') + ',';
+    return s;
+  }
   function refresh(silent) {
     // 之前这里是静默 return，正在刷新时点按钮毫无反应。
     // 现在至少给出提示，用户能知道"点了、在忙"。
@@ -618,7 +638,9 @@
       setRefreshing(false);
       if (msg) toast(msg);
       try {
-        renderTimetable();
+        // 数据没变化就不重绘课表，避免启动/刷新时白闪
+        var sig = ttSig();
+        if (sig !== state.__ttSig) { state.__ttSig = sig; renderTimetable(); }
         renderGrades();
         renderCet();
         renderFitness();
@@ -3393,6 +3415,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
