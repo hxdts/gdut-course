@@ -278,10 +278,21 @@
           if (v !== null) o[k] = v;
         } catch (e) {}
       });
+      // 课表缓存（ttc_ 前缀）也一起备份到原生：
+      // 否则系统清理 WebView 存储或覆盖安装后，整学期课表会全部丢失。
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var key = localStorage.key(i);
+          if (key && key.indexOf('ttc_') === 0) {
+            var val = localStorage.getItem(key);
+            if (val !== null) o[key] = val;
+          }
+        }
+      } catch (e) {}
       try {
         call('savePrefs', { data: JSON.stringify(o) }).catch(function () {});
       } catch (e) {}
-    }, 600);
+    }, 400);
   }
 
   function restorePrefs(done) {
@@ -299,7 +310,7 @@
         try {
           var o = JSON.parse(r.data);
           Object.keys(o).forEach(function (k) {
-            if (PREF_KEYS.indexOf(k) < 0) return;
+            if (PREF_KEYS.indexOf(k) < 0 && k.indexOf('ttc_') !== 0) return;
             // 只补本地缺失的，不覆盖用户当前设置
             if (localStorage.getItem(k) === null) {
               localStorage.setItem(k, o[k]);
@@ -2601,8 +2612,8 @@
   // 手势参数（像素 / 速度，便于直接调）
   var TT_DUR_SWAP = 600;      // 换页动画时长
   var TT_DUR_SNAP = 260;      // 吸附动画时长
-  var TT_EDGE_PX = 56;        // 越过端点多少像素就换页
-  var TT_FLING_V = 0.35;      // px/ms，超过视为「甩」
+  var TT_EDGE_PX = 96;        // 越过端点多少像素就换页
+  var TT_FLING_V = 0.55;      // px/ms，超过视为「甩」
   var TT_FLING_MIN_DX = 24;   // 甩动手势的最小位移，防抖
 
   /** 一页的真实宽度：直接量 DOM，不再靠 JS 推算（屏幕变化后永远正确） */
@@ -2743,21 +2754,13 @@
       // 本次手势总位移（速度算不准时的兜底依据）
       var dd = Math.abs(p - ttSwipe.startPos);
       var movedRight = p > ttSwipe.startPos;   // pos 变大 = 看更靠后的周
-
-      // 1) 甩动：速度够快 或 位移够大，都算「以最后一次动作为准」
-      var flingFar = dd >= e.pw * 0.35;
-      if (dxAbs >= TT_FLING_MIN_DX) {
-        if (movedRight && (v <= -TT_FLING_V || flingFar)) { swap(1); return; }
-        if (!movedRight && (v >= TT_FLING_V || flingFar)) { swap(-1); return; }
-      }
-
       // 2) 越过端点
       if (p < e.left) {
-        if (e.left - p >= TT_EDGE_PX) swap(-1); else snap(e.left);
+        if (e.left - p >= TT_EDGE_PX || (v > TT_FLING_V && dxAbs >= TT_FLING_MIN_DX)) swap(-1); else snap(e.left);
         return;
       }
       if (p > e.right) {
-        if (p - e.right >= TT_EDGE_PX) swap(1); else snap(e.right);
+        if (p - e.right >= TT_EDGE_PX || (v < -TT_FLING_V && dxAbs >= TT_FLING_MIN_DX)) swap(1); else snap(e.right);
         return;
       }
 
@@ -2810,48 +2813,72 @@
     }
 
     // ---------------- 事件绑定 ----------------
-    // pointerup 可能因为指针捕获、快速抬手、合成事件等原因落不到 sc 上，
-    // 所以在 window 上也挂一份兜底，end() 自身是幂等的（state 不是 drag 就直接返回）。
+    // ---------------- 事件绑定（document 级委托）----------------
+    // 课表 DOM 每次换周都会重建，绑在 #ttScroll 上的监听会随之失效，
+    // 所以统一挂在 document 上，用事件目标判断是否落在课表区域内。
+    if (ttSwipe.bound) return;
+    ttSwipe.bound = true;
+
+    function inTT(t) {
+      while (t && t.nodeType === 1) {
+        if (t.id === 'ttScroll') return true;
+        t = t.parentNode;
+      }
+      return false;
+    }
+
     if (window.PointerEvent) {
-      sc.addEventListener('pointerdown', function (ev) {
+      document.addEventListener('pointerdown', function (ev) {
+        if (!inTT(ev.target)) return;
         if (ev.button !== undefined && ev.button !== 0) return;
         if (ev.isPrimary === false) return;
-        try { sc.setPointerCapture(ev.pointerId); } catch (err) {}
         begin(ev.clientX, ev.clientY);
-      });
-      sc.addEventListener('pointermove', function (ev) {
+      }, true);
+      document.addEventListener('pointermove', function (ev) {
+        if (!ttSwipe.active) return;
         move(ev.clientX, ev.clientY);
-      });
-      sc.addEventListener('pointerup', function () { end(); });
-      sc.addEventListener('pointercancel', function () { end(); });
-      window.addEventListener('pointerup', function () { end(); });
-      document.addEventListener('pointerup', function () { if (ttSwipe.active) end(); }, true);
-      document.addEventListener('pointercancel', function () { if (ttSwipe.active) end(); }, true);
-      window.addEventListener('blur', function () { if (ttSwipe.active) end(); });
-      window.addEventListener('pointercancel', function () { end(); });
+      }, true);
+      document.addEventListener('pointerup', function () {
+        if (ttSwipe.active) end();
+      }, true);
+      document.addEventListener('pointercancel', function () {
+        if (ttSwipe.active) end();
+      }, true);
     } else {
-      sc.addEventListener('touchstart', function (ev) {
+      document.addEventListener('touchstart', function (ev) {
+        if (!inTT(ev.target)) return;
         if (ev.touches.length !== 1) return;
         begin(ev.touches[0].clientX, ev.touches[0].clientY);
-      }, { passive: true });
-      sc.addEventListener('touchmove', function (ev) {
+      }, { passive: true, capture: true });
+      document.addEventListener('touchmove', function (ev) {
+        if (!ttSwipe.active) return;
         if (ev.touches.length !== 1) return;
         move(ev.touches[0].clientX, ev.touches[0].clientY);
-      }, { passive: true });
-      sc.addEventListener('touchend', function () { end(); }, { passive: true });
-      sc.addEventListener('touchcancel', function () { end(); }, { passive: true });
-      window.addEventListener('touchend', function () { end(); }, { passive: true });
+      }, { passive: true, capture: true });
+      document.addEventListener('touchend', function () {
+        if (ttSwipe.active) end();
+      }, { passive: true, capture: true });
+      document.addEventListener('touchcancel', function () {
+        if (ttSwipe.active) end();
+      }, { passive: true, capture: true });
       // 鼠标（桌面预览）
-      sc.addEventListener('mousedown', function (ev) {
+      document.addEventListener('mousedown', function (ev) {
+        if (!inTT(ev.target)) return;
         if (ev.button !== 0) return;
         begin(ev.clientX, ev.clientY);
-      });
+      }, true);
       document.addEventListener('mousemove', function (ev) {
         if (!ttSwipe.active) return;
         move(ev.clientX, ev.clientY);
-      });
-      document.addEventListener('mouseup', function () { end(); });
+      }, true);
+      document.addEventListener('mouseup', function () {
+        if (ttSwipe.active) end();
+      }, true);
     }
+
+    window.addEventListener('blur', function () {
+      if (ttSwipe.active) end();
+    });
   }
   function resetSwipeOffset() { }
   $('#rowWallpaper').addEventListener('click', function () {
@@ -3139,6 +3166,8 @@
   bindLoginCheckboxes();
   boot();
 })();
+
+
 
 
 
