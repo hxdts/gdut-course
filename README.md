@@ -3,7 +3,7 @@
 广东工业大学教务系统的安卓客户端源码。**直接调用学校接口取数据**，不是网页套壳。
 
 - 安装包发布地址：[gdut-course-release](https://github.com/hxdts/gdut-course-release)
-- 当前版本：**v5.1** ｜ 包名：`com.gdut.course` ｜ 支持 Android 6.0+
+- 当前版本：**v5.2** ｜ 包名：`com.gdut.course` ｜ 支持 Android 6.0+
 
 ---
 
@@ -149,5 +149,6 @@ apksigner sign --ks debug.keystore --out out.apk aligned.apk
 代码仅供学习参考。**请仅用于查询自己的数据，不要批量爬取或用于任何商业用途。** 使用本代码产生的一切后果由使用者自行承担。
 
 学校系统改版可能导致功能失效。
+
 
 
