@@ -640,7 +640,7 @@
       try {
         // 数据没变化就不重绘课表，避免启动/刷新时白闪
         var sig = ttSig();
-        if (sig !== state.__ttSig) { state.__ttSig = sig; renderTimetable(); }
+        if (sig !== state.__ttSig) { state.__ttSig = sig; state.__colorMap = null; renderTimetable(); }
         renderGrades();
         renderCet();
         renderFitness();
@@ -1325,9 +1325,39 @@
   }
 
   /** 课程颜色：优先用自定义，否则按课程名散列到内置调色板 */
+  /** 自动配色表：按课程名稳定排序后依次取色，保证同时出现的课不撞色 */
+  function rebuildColorMap() {
+    var pal = currentPalette();
+    var colors = pal.colors || [];
+    var seen = {};
+    var names = [];
+    // 收集整学期所有出现过的课程名，同一门课在任何周都是同一个颜色
+    var total = state.totalWeeks || 22;
+    for (var w = 1; w <= total; w++) {
+      var c = loadTtCache(state.term, w);
+      if (!c || !c.courses) continue;
+      for (var i = 0; i < c.courses.length; i++) {
+        var nm = c.courses[i].name;
+        if (nm && !seen[nm]) { seen[nm] = 1; names.push(nm); }
+      }
+    }
+    (state.courses || []).forEach(function (c) {
+      if (c.name && !seen[c.name]) { seen[c.name] = 1; names.push(c.name); }
+    });
+    names.sort();
+    var map = {};
+    for (var k = 0; k < names.length; k++) {
+      map[names[k]] = colors[k % colors.length];
+    }
+    state.__colorMap = map;
+  }
+
   function colorOf(name) {
     var m = getCourseColors();
     if (m[name]) return m[name];
+    if (!state.__colorMap) rebuildColorMap();
+    var map = state.__colorMap || {};
+    if (map[name]) return map[name];
     var pal = currentPalette();
     var h = 0;
     for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
@@ -2332,13 +2362,18 @@
   var PALETTES = [
     {
       id: 'default', name: '默认', colors: [
-        'linear-gradient(145deg,#4d8bff,#2f63e0)',
-        'linear-gradient(145deg,#ff8a5b,#e8622f)',
-        'linear-gradient(145deg,#3ecf8e,#12a866)',
-        'linear-gradient(145deg,#a07bff,#7148d8)',
-        'linear-gradient(145deg,#ff6f91,#d63c66)',
-        'linear-gradient(145deg,#f7b955,#e09400)',
-        'linear-gradient(145deg,#5ec7e8,#2b93bd)'
+        'linear-gradient(145deg,#4d8bff,#2f63e0)',   // 蓝
+        'linear-gradient(145deg,#ff8a5b,#e8622f)',   // 橙
+        'linear-gradient(145deg,#3ecf8e,#12a866)',   // 绿
+        'linear-gradient(145deg,#a07bff,#7148d8)',   // 紫
+        'linear-gradient(145deg,#ff6f91,#d63c66)',   // 粉
+        'linear-gradient(145deg,#f7b955,#e09400)',   // 金
+        'linear-gradient(145deg,#5ec7e8,#2b93bd)',   // 青
+        'linear-gradient(145deg,#8bc34a,#558b2f)',   // 草绿
+        'linear-gradient(145deg,#ef5350,#b71c1c)',   // 红
+        'linear-gradient(145deg,#26c6da,#00796b)',   // teal
+        'linear-gradient(145deg,#b39ddb,#5e35b1)',   // 淡紫
+        'linear-gradient(145deg,#a1887f,#5d4037)'    // 棕
       ]
     },
     {
@@ -3415,6 +3450,9 @@
   bindLoginCheckboxes();
   boot();
 })();
+
+
+
 
 
 
