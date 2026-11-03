@@ -732,9 +732,9 @@
   function showExpired() {
     if (state.__expiredShown) return;
     state.__expiredShown = true;
-    // 记住密码时直接用记住的账号密码自动重登，不用用户再输一遍
+    // 只要保存过账号密码就直接静默重登，不再要求 rememberPwd 标志为真
     var c = getSavedLogin();
-    if (rememberPwd && c.sid && c.pwd) {
+    if (c.sid && c.pwd) {
       toast('登录已过期，正在自动重新登录…');
       state.__expiredShown = false;
       call('logout').then(function () {
@@ -2610,9 +2610,9 @@
   };
 
   // 手势参数（像素 / 速度，便于直接调）
-  var TT_DUR_SWAP = 600;      // 换页动画时长
-  var TT_DUR_SNAP = 260;      // 吸附动画时长
-  var TT_EDGE_PX = 96;        // 越过端点多少像素就换页
+  var TT_DUR_SWAP = 320;      // 换页动画时长（要短，否则滑完像没反应）
+  var TT_DUR_SNAP = 220;      // 吸附动画时长
+  var TT_EDGE_PX = 56;        // 越过端点多少像素就换页
   var TT_FLING_V = 0.55;      // px/ms，超过视为「甩」
   var TT_FLING_MIN_DX = 24;   // 甩动手势的最小位移，防抖
 
@@ -3166,6 +3166,9 @@
   bindLoginCheckboxes();
   boot();
 })();
+
+
+
 
 
 
