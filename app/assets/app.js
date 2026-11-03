@@ -788,17 +788,21 @@
     var dir = w > (state.week || 1) ? 1 : -1;
     state.week = w;
 
-    // 先用本地缓存立刻画出这一周，保证换周动画衔接上；网络结果回来再覆盖
+    // 课表已整学期缓存在本地：有缓存就直接用，不走网络（换周瞬间完成）
     var cached = loadTtCache(state.term, w);
     if (cached && cached.courses) {
       state.courses = cached.courses;
       state.days = cached.days || [];
-      state.ttError = "";
+      state.ttError = '';
+      state.offline = false;
       renderTimetable();
-    } else {
-      setWeekPending(true);
+      animateTimetable(dir);
+      setWeekPending(false);
+      return;
     }
 
+    // 只有这一周没有缓存时才去请求
+    setWeekPending(true);
     call('timetable', { term: state.term || '', week: w })
       .then(function (d) {
         d = d || {};
@@ -2897,6 +2901,7 @@
   bindLoginCheckboxes();
   boot();
 })();
+
 
 
 
