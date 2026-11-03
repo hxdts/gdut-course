@@ -7,7 +7,9 @@
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <!-- 刘海屏也铺满，不缩进 -->
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowTranslucentNavigation">false</item>
+        <!-- 刘海屏/挖孔屏也铺满，不缩进 -->
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="android:colorPrimary">#FF2F6BFF</item>
         <item name="android:colorAccent">#FF2F6BFF</item>
