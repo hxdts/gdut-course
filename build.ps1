@@ -54,6 +54,20 @@ if (Test-Path $build) { Remove-Item $build -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $build, "$build\gen", "$build\classes", "$build\dex" | Out-Null
 if (!(Test-Path $out)) { New-Item -ItemType Directory -Force -Path $out | Out-Null }
 
+
+# 打包前把 assets 复制一份，并给 app.js / style.css 加上版本号：
+# 安卓 WebView 会缓存同名资源，改名才能确保新版本真的生效
+$verName = ([regex]::Match((Get-Content "$app\AndroidManifest.xml" -Raw), 'android:versionName="([^"]+)"')).Groups[1].Value
+if (!$verName) { $verName = "x" }
+$assetTmp = "$build\assets"
+Copy-Item "$app\assets" $assetTmp -Recurse -Force
+if (Test-Path "$assetTmp\app.js") { Move-Item "$assetTmp\app.js" "$assetTmp\app.$verName.js" -Force }
+if (Test-Path "$assetTmp\style.css") { Move-Item "$assetTmp\style.css" "$assetTmp\style.$verName.css" -Force }
+$idx = Get-Content "$assetTmp\index.html" -Raw
+$idx = $idx.Replace("app.js", "app.$verName.js").Replace("style.css", "style.$verName.css")
+[IO.File]::WriteAllText("$assetTmp\index.html", $idx, (New-Object System.Text.UTF8Encoding($false)))
+Write-Host "assets 版本化: app.$verName.js / style.$verName.css"
+
 Write-Host "==> 1/6 编译资源 (aapt2)" -ForegroundColor Cyan
 & "$bt\aapt2.exe" compile --dir "$app\res" -o "$build\res.zip"
 if ($LASTEXITCODE -ne 0) { throw "aapt2 compile 失败" }
@@ -66,7 +80,7 @@ Write-Host "==> 2/6 链接资源 (aapt2 link)" -ForegroundColor Cyan
     -R "$build\res.zip" `
     --auto-add-overlay `
     --java "$build\gen" `
-    -A "$app\assets" `
+    -A $assetTmp `
     --min-sdk-version 23 `
     --target-sdk-version 35
 if ($LASTEXITCODE -ne 0) { throw "aapt2 link 失败" }
