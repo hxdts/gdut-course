@@ -1162,3 +1162,19 @@ body.dark-theme .tt-dots i { background: rgba(255,255,255,.25); }
 }
 .tt-slab:first-child { padding-left: 0; }
 .tt-slab:last-child { padding-right: 0; }
+
+/* ===== 课表：一屏 5 天，横向滑动看周末（同一张课表）===== */
+.tt-scroll {
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -14px;
+  padding: 0 14px 2px;
+  scrollbar-width: none;
+}
+.tt-scroll::-webkit-scrollbar { display: none; }
+.tt-scroll .timetable {
+  width: max-content !important;
+  gap: 3px !important;
+}
+.tt-slab { padding: 0; }
