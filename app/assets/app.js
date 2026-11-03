@@ -1282,6 +1282,29 @@
     '#0f172a', '#334155'
   ];
   /** 把某一周的课程渲染成完整网格（周一到周日 7 列）；courses 为空时渲染空网格 */
+  /** 只更新下方的课程清单（换页时用，避免整块重建） */
+  function renderCourseList(cs) {
+    var card = $('#courseListCard');
+    if (!card) return;
+    var days = ['一', '二', '三', '四', '五', '六', '日'];
+    var byName = {};
+    cs.forEach(function (c) { (byName[c.name] = byName[c.name] || []).push(c); });
+    var html2 = '<div class="card-title">课程 · ' + Object.keys(byName).length + ' 门</div>';
+    Object.keys(byName).forEach(function (n) {
+      var arr = byName[n];
+      var c = arr[0];
+      var times = arr.map(function (x) { return '周' + days[x.day - 1] + ' 第' + x.start + '-' + x.end + '节'; }).join('，');
+      var isCustom = !!getCourseColors()[n];
+      html2 += '<div class="course-row"><div style="flex:1">' +
+        '<div class="nm">' + esc(n) + '</div>' +
+        '<div class="meta">' + esc(times) + (c.teacher ? ' · ' + esc(c.teacher) : '') + (c.room ? ' · ' + esc(c.room) : '') + '</div>' +
+        '</div>' +
+        '<span class="cc-dot' + (isCustom ? ' custom' : '') + '" data-name="' + esc(n) + '"' +
+        ' style="background:' + colorOf(n) + '"></span>' +
+        '</div>';
+    });
+    card.innerHTML = html2;
+  }
   function buildPane(courses, colW) {
     var days = ['一', '二', '三', '四', '五', '六', '日'];
     var cs = courses || [];
@@ -1374,10 +1397,25 @@
       '<div class="tt-week" style="width:' + pageW + 'px">' + buildPane(cs, colW) + '</div>' +
       '<div class="tt-week" style="width:' + pageW + 'px">' + buildPane(nextC, colW) + '</div>' +
       '</div></div>';
+    // ★ 增量更新：条带还在就只替换三页内容，不重建外层 DOM，避免换页后闪一下
+    var existStrip = $('#ttStrip');
+    if (existStrip && existStrip.children.length === 3) {
+      existStrip.children[0].innerHTML = buildPane(prevC, colW);
+      existStrip.children[1].innerHTML = buildPane(cs, colW);
+      existStrip.children[2].innerHTML = buildPane(nextC, colW);
+      existStrip.style.width = (pageW * 3) + 'px';
+      for (var wi = 0; wi < 3; wi++) existStrip.children[wi].style.width = pageW + 'px';
+      renderCourseList(cs);
+      $('#weekLabel').textContent = '第 ' + (state.week || 1) + ' 周';
+      if (typeof ttSetPos === 'function') ttSetPos(pageW, false);
+      initTTSwipe();
+      return;
+    }
+
     var days = ['一', '二', '三', '四', '五', '六', '日'];
     var byName = {};
     cs.forEach(function (c) { (byName[c.name] = byName[c.name] || []).push(c); });
-    html += '<div class="card" style="margin-top:12px"><div class="card-title">课程 · ' +
+    html += '<div class="card" id="courseListCard" style="margin-top:12px"><div class="card-title">课程 · ' +
             Object.keys(byName).length + ' 门</div>';
     Object.keys(byName).forEach(function (n) {
       var arr = byName[n];
@@ -2607,12 +2645,12 @@
       var DUR = 1000;   // 换页动画时长（跟 ttSetPos 的 transition 一致）
 
       // 越过相邻周 18%：先把整页滑完（看得见的换页动画），动画结束后再换数据
-      if (p < leftEdge - pw * 0.38) {
+      if (p < leftEdge - pw * 0.32) {
         ttSetPos(0, true);
         setTimeout(function () { goWeek(-1); }, DUR);
         return;
       }
-      if (p > rightEdge + pw * 0.38) {
+      if (p > rightEdge + pw * 0.32) {
         ttSetPos(pw * 2, true);
         setTimeout(function () { goWeek(1); }, DUR);
         return;
@@ -2910,6 +2948,8 @@
   bindLoginCheckboxes();
   boot();
 })();
+
+
 
 
 
