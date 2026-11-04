@@ -808,7 +808,6 @@
   function reLoginAndRetry(sid, pwd) {
     if (state.__reLogging) return;
     state.__reLogging = true;
-    toast('登录已过期，正在自动重新登录…');
     function retry() {
       setTimeout(function () {
         state.__reLogging = false;
@@ -840,7 +839,6 @@
     // 只要保存过账号密码就直接静默重登，不再要求 rememberPwd 标志为真
     var c = getSavedLogin();
     if (c.sid && c.pwd) {
-      toast('登录已过期，正在自动重新登录…');
       state.__expiredShown = false;
       call('logout').then(function () {
         autoLogin();
