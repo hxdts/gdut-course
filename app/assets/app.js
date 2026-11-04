@@ -1510,8 +1510,8 @@
             ';grid-column:' + (d + 1) + '">' +
             '<div class="tt-course" data-idx="' + c.__i + '" style="background:' + colorOf(c.name) + '">' +
             '<span class="n">' + esc(shortName(c.name)) + '</span>' +
-            (c.room ? '<span class="r">' + esc(c.room) + '</span>' : '') +
-            (c.teacher ? '<span class="r">' + esc(c.teacher) + '</span>' : '') +
+            (c.room ? '<span class="r room">' + esc(c.room) + '</span>' : '') +
+            (c.teacher ? '<span class="r teacher">' + esc(c.teacher) + '</span>' : '') +
             '</div></div>';
         } else if (!c) {
           html += '<div class="tt-cell" style="grid-row:' + row + ';grid-column:' + (d + 1) + '"></div>';
@@ -1963,15 +1963,16 @@
     if (thumb) thumb.style.left = v + '%';
   }
 
-  /* ================= 课表文字字号（五类独立） ================= */
+  /* ================= 课表文字字号（七类独立） ================= */
   var TT_FS_KEYS = [
     { k: 'week', name: '周次' },
     { k: 'day', name: '星期' },
     { k: 'date', name: '日期' },
     { k: 'sec', name: '节数' },
-    { k: 'course', name: '课程' }
+    { k: 'course', name: '课程' },
+    { k: 'room', name: '教室' },
+    { k: 'teacher', name: '教师' }
   ];
-
   function getTtFs() {
     var d = {};
     TT_FS_KEYS.forEach(function (it) { d[it.k] = 100; });
@@ -2502,7 +2503,7 @@
     var block = $('#wallFitBlock');
     if (block) {
       var has = false;
-      try { has = !!localStorage.getItem('wallpaper'); } catch (e) {}
+      has = !!currentWall();
       block.style.display = has ? 'block' : 'none';
     }
   }
@@ -2510,10 +2511,30 @@
     var el = $('#wallTools');
     if (!el) return;
     var has = false;
-    try { has = !!localStorage.getItem('wallpaper'); } catch (e) {}
+    has = !!currentWall();
     el.style.display = has ? 'flex' : 'none';
   }
 
+  /** 默认壁纸就是启动图那张 */
+  var DEFAULT_WALL = 'wall-default.jpg';
+
+  /** 当前该显示的壁纸：没设置过就用默认图，设成 none 才是真没有 */
+  function currentWall() {
+    var v = null;
+    try { v = localStorage.getItem('wallpaper'); } catch (e) {}
+    if (v === 'none') return '';
+    if (!v) return DEFAULT_WALL;
+    return v;
+  }
+
+  /** 用回默认壁纸（启动图） */
+  function useDefaultWall() {
+    try { localStorage.setItem('wallpaper', DEFAULT_WALL); } catch (e) {}
+    applyWallpaper(DEFAULT_WALL);
+    applyTextStyle();
+    toast('已使用默认壁纸');
+    if (typeof backupPrefs === 'function') backupPrefs();
+  }
   function applyWallpaper(path) {
     updateWallTools();
     var wp = $('#wp');
@@ -2559,7 +2580,8 @@
   };
 
   function clearWallpaper() {
-    try { localStorage.removeItem('wallpaper'); } catch (e) {}
+    // 记成 none：表示用户主动不要壁纸，重启也不会自动套用默认壁纸
+    try { localStorage.setItem('wallpaper', 'none'); } catch (e) {}
     applyWallpaper('');
     toast('已移除壁纸');
     if (typeof backupPrefs === 'function') backupPrefs();
@@ -2589,9 +2611,8 @@
 
   function initAppearance() {
     try {
-      var w = localStorage.getItem('wallpaper');
-      // 无论有没有壁纸都走一遍，保证"壁纸工具条"的显示状态正确
-      applyWallpaper(w || '');
+      // 没设置过壁纸就用默认壁纸（启动图那张）
+      applyWallpaper(currentWall());
       var th = localStorage.getItem('theme');
       if (th) applyTheme(th);
     } catch (e) {}
@@ -2736,7 +2757,7 @@
       if (!tool) return;
       var op = tool.getAttribute('data-op');
       if (!op) return;
-      if (!localStorage.getItem('wallpaper')) {
+      if (!currentWall()) {
         toast('先设置一张壁纸');
         return;
       }
@@ -3123,6 +3144,7 @@
   });
 
   $('#rowWallClear').addEventListener('click', clearWallpaper);
+  if ($('#rowWallDefault')) $('#rowWallDefault').addEventListener('click', useDefaultWall);
 
   /** 下载并安装 */
   function doDownloadUpdate(r) {
